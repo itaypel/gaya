@@ -347,9 +347,9 @@ class App {
         <a href="#" data-act="goHydro">הידרופוני</a>
         <a href="#" data-act="goCare">טיפוח</a>
       </nav>
-      <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="margin-inline-start: var(--wa-margin-start, 0); color: #25D366">${ICON.whatsapp}</a>
+      <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="margin-inline-start: auto; color: #25D366">${ICON.whatsapp}</a>
       <button class="btn btn-secondary btn-icon" data-act="toggleNav" aria-label="פתיחת תפריט" aria-expanded="${s.navOpen}" style="display: var(--menu-btn-display, none)">${ICON.menu}</button>
-      <button class="btn btn-primary" data-act="toggleCart" style="display: var(--cart-btn-display, flex); gap: 8px; margin-inline-start: auto; white-space: nowrap; padding: 7px 14px; min-height: 0; font-size: 14px">
+      <button class="btn btn-primary" data-act="toggleCart" style="display: var(--cart-btn-display, flex); gap: 8px; white-space: nowrap; padding: 7px 14px; min-height: 0; font-size: 14px">
         ${ICON.bag}<span>עגלה</span><span style="font-variant-numeric: tabular-nums">(${this.cartCount()})</span>
       </button>
     </header>`;
