@@ -348,7 +348,8 @@ class App {
         <a href="#" data-act="goCare">טיפוח</a>
       </nav>
       <button class="btn btn-secondary btn-icon" data-act="toggleNav" aria-label="פתיחת תפריט" aria-expanded="${s.navOpen}" style="display: var(--menu-btn-display, none); margin-inline-start: auto">${ICON.menu}</button>
-      <button class="btn btn-primary" data-act="toggleCart" style="gap: 8px; margin-inline-start: auto; white-space: nowrap; padding: 7px 14px; min-height: 0; font-size: 14px">
+      <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="color: #25D366">${ICON.whatsapp}</a>
+      <button class="btn btn-primary" data-act="toggleCart" style="display: var(--cart-btn-display, flex); gap: 8px; margin-inline-start: auto; white-space: nowrap; padding: 7px 14px; min-height: 0; font-size: 14px">
         ${ICON.bag}<span>עגלה</span><span style="font-variant-numeric: tabular-nums">(${this.cartCount()})</span>
       </button>
     </header>`;

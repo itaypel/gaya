@@ -163,7 +163,7 @@ textarea.input { min-height: 90px; resize: vertical; font-family: inherit; }
 h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
 
 @media (max-width: 900px) {
-  :root { --pg: 22px; --cart-w: min(384px, 86vw); --nav-display: none; --cart-pos: fixed; --cart-scrim: block; --cart-bar: block; --cart-bar-h: calc(68px + env(safe-area-inset-bottom)); --menu-btn-display: flex; --nav-drawer-display: block; }
+  :root { --pg: 22px; --cart-w: min(384px, 86vw); --nav-display: none; --cart-pos: fixed; --cart-scrim: block; --cart-bar: block; --cart-bar-h: calc(68px + env(safe-area-inset-bottom)); --menu-btn-display: flex; --nav-drawer-display: block; --cart-btn-display: none; }
   [data-cart] { inset-inline-start: 0; z-index: 60; box-shadow: var(--shadow-lg); }
   :root { --a11y-b: 84px; --a11y-p: 140px; }
 }
