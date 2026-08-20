@@ -157,12 +157,13 @@ textarea.input { min-height: 90px; resize: vertical; font-family: inherit; }
   box-shadow: inset 0 0 0 1px rgba(255,252,244,0.3);
 }
 .plate img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+.plate model-viewer { --progress-bar-color: var(--color-accent); --progress-bar-height: 4px; }
 
 /* — headings hierarchy carried by weight, not by mixing a serif in — */
 h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
 
 @media (max-width: 900px) {
-  :root { --pg: 22px; --cart-w: min(384px, 86vw); --nav-display: none; --cart-pos: fixed; --cart-scrim: block; --cart-bar: block; --cart-bar-h: calc(68px + env(safe-area-inset-bottom)); }
+  :root { --pg: 22px; --cart-w: min(384px, 86vw); --nav-display: none; --cart-pos: fixed; --cart-scrim: block; --cart-bar: block; --cart-bar-h: calc(68px + env(safe-area-inset-bottom)); --menu-btn-display: flex; --nav-drawer-display: block; }
   [data-cart] { inset-inline-start: 0; z-index: 60; box-shadow: var(--shadow-lg); }
   :root { --a11y-b: 84px; --a11y-p: 140px; }
 }

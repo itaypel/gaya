@@ -20,7 +20,7 @@ class App {
     let admAuthed = false;
     try { admAuthed = sessionStorage.getItem('gaya_admin_ok') === '1'; } catch (e) {}
     this.state = {
-      screen: 'home', cat: 'kokedama', prod: 'p1', cart: {}, open: false, method: 'ship', pay: 'card',
+      screen: 'home', cat: 'kokedama', prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
       admTab: 'products', site: Object.assign({}, SITE),
       ordFilter: 'all', ordStates: {}, ordOpenRef: null,
@@ -175,10 +175,10 @@ class App {
     const id = el.dataset.id;
     const s = this.state;
     switch (act) {
-      case 'goHome': this.nav({ screen: 'home' }); break;
-      case 'goKokedama': this.nav({ screen: 'category', cat: 'kokedama' }); break;
-      case 'goHydro': this.nav({ screen: 'category', cat: 'hydro' }); break;
-      case 'goCare': this.nav({ screen: 'care' }); break;
+      case 'goHome': this.nav({ screen: 'home', navOpen: false }); break;
+      case 'goKokedama': this.nav({ screen: 'category', cat: 'kokedama', navOpen: false }); break;
+      case 'goHydro': this.nav({ screen: 'category', cat: 'hydro', navOpen: false }); break;
+      case 'goCare': this.nav({ screen: 'care', navOpen: false }); break;
       case 'goCheckout': this.nav({ screen: 'checkout', open: false }); break;
       case 'goAdmin': this.nav(s.admAuthed ? { screen: 'admin' } : { screen: 'adminGate', admPass: '', admGateError: false }); break;
       case 'admGateSubmit': this.tryAdminGate(); break;
@@ -193,6 +193,8 @@ class App {
       case 'setHydro': this.swapCat('hydro'); break;
       case 'toggleCart': this.setState((st) => ({ open: !st.open })); break;
       case 'closeCart': this.setState({ open: false }); break;
+      case 'toggleNav': this.setState((st) => ({ navOpen: !st.navOpen })); break;
+      case 'closeNav': this.setState({ navOpen: false }); break;
       case 'openCartBar': this.setState({ open: true }); break;
       case 'open': this.nav({ screen: 'product', prod: id }); break;
       case 'add': this.add(id); break;
@@ -283,6 +285,7 @@ class App {
       ${this.renderProductEditorPanel()}
       ${this.renderOrderPanel()}
       ${this.renderCartAside()}
+      ${this.renderNavAside()}
     `;
     this.root.innerHTML = html;
     document.documentElement.style.fontSize = s.font + '%';
@@ -344,10 +347,29 @@ class App {
         <a href="#" data-act="goHydro">הידרופוני</a>
         <a href="#" data-act="goCare">טיפוח</a>
       </nav>
+      <button class="btn btn-secondary btn-icon" data-act="toggleNav" aria-label="פתיחת תפריט" aria-expanded="${s.navOpen}" style="display: var(--menu-btn-display, none); margin-inline-start: auto">${ICON.menu}</button>
       <button class="btn btn-primary" data-act="toggleCart" style="gap: 8px; margin-inline-start: auto; white-space: nowrap; padding: 7px 14px; min-height: 0; font-size: 14px">
         ${ICON.bag}<span>עגלה</span><span style="font-variant-numeric: tabular-nums">(${this.cartCount()})</span>
       </button>
     </header>`;
+  }
+
+  renderNavAside() {
+    const s = this.state;
+    return `
+    <div data-act="closeNav" aria-hidden="true" style="position: fixed; inset: 0; z-index: 64; background: rgba(24,30,24,0.34); transition: opacity 0.3s ease; display: var(--nav-drawer-display, none); opacity: ${s.navOpen ? 1 : 0}; pointer-events: ${s.navOpen ? 'auto' : 'none'}"></div>
+    <aside role="dialog" aria-label="תפריט" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(300px, 84vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: var(--nav-drawer-display, none); transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${s.navOpen ? '0s' : '0.32s'}; transform: ${s.navOpen ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${s.navOpen ? 'visible' : 'hidden'}">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 21px 26px; border-bottom: 1px solid var(--color-divider)">
+        <span style="font-family: var(--font-heading); font-size: 19px; font-weight: 400; letter-spacing: 0.12em">GAYA</span>
+        <button class="btn btn-secondary btn-icon" data-act="closeNav" aria-label="סגירת התפריט">${ICON.close16}</button>
+      </div>
+      <nav style="display: flex; flex-direction: column; padding: 10px; gap: 2px; font-size: 16px">
+        <a href="#" data-act="goHome" style="padding: 15px 16px">דף הבית</a>
+        <a href="#" data-act="goKokedama" style="padding: 15px 16px">קוקודמות</a>
+        <a href="#" data-act="goHydro" style="padding: 15px 16px">הידרופוני</a>
+        <a href="#" data-act="goCare" style="padding: 15px 16px">טיפוח</a>
+      </nav>
+    </aside>`;
   }
 
   renderFooter() {
@@ -671,7 +693,7 @@ class App {
         <div style="display: grid; gap: 14px; min-width: 0">
           ${prod.model ? `
           <div class="plate" style="position: relative; aspect-ratio: 4/5; min-width: 0; overflow: hidden">
-            <model-viewer src="${esc(prod.model)}" alt="${esc(prod.name)} — סריקה תלת־ממדית" camera-controls auto-rotate interaction-prompt="none" interpolation-decay="200" shadow-intensity="1" style="position: absolute; inset: 0; width: 100%; height: 100%; background: var(--color-neutral-200); display: block"></model-viewer>
+            <model-viewer src="${esc(prod.model)}" alt="${esc(prod.name)} — סריקה תלת־ממדית" camera-controls auto-rotate loading="eager" interaction-prompt="none" interpolation-decay="200" shadow-intensity="1" style="position: absolute; inset: 0; width: 100%; height: 100%; background: var(--color-neutral-200); display: block"></model-viewer>
           </div>
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : prod.embed ? `
