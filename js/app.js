@@ -671,7 +671,7 @@ class App {
         <div style="display: grid; gap: 14px; min-width: 0">
           ${prod.model ? `
           <div class="plate" style="position: relative; aspect-ratio: 4/5; min-width: 0; overflow: hidden">
-            <model-viewer src="${esc(prod.model)}" alt="${esc(prod.name)} — סריקה תלת־ממדית" camera-controls auto-rotate shadow-intensity="1" style="position: absolute; inset: 0; width: 100%; height: 100%; background: var(--color-neutral-200); display: block"></model-viewer>
+            <model-viewer src="${esc(prod.model)}" alt="${esc(prod.name)} — סריקה תלת־ממדית" camera-controls auto-rotate interaction-prompt="none" interpolation-decay="200" shadow-intensity="1" style="position: absolute; inset: 0; width: 100%; height: 100%; background: var(--color-neutral-200); display: block"></model-viewer>
           </div>
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : prod.embed ? `
