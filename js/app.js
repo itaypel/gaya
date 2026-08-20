@@ -347,8 +347,8 @@ class App {
         <a href="#" data-act="goHydro">הידרופוני</a>
         <a href="#" data-act="goCare">טיפוח</a>
       </nav>
-      <button class="btn btn-secondary btn-icon" data-act="toggleNav" aria-label="פתיחת תפריט" aria-expanded="${s.navOpen}" style="display: var(--menu-btn-display, none); margin-inline-start: auto">${ICON.menu}</button>
-      <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="color: #25D366">${ICON.whatsapp}</a>
+      <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="margin-inline-start: auto; color: #25D366">${ICON.whatsapp}</a>
+      <button class="btn btn-secondary btn-icon" data-act="toggleNav" aria-label="פתיחת תפריט" aria-expanded="${s.navOpen}" style="display: var(--menu-btn-display, none)">${ICON.menu}</button>
       <button class="btn btn-primary" data-act="toggleCart" style="display: var(--cart-btn-display, flex); gap: 8px; margin-inline-start: auto; white-space: nowrap; padding: 7px 14px; min-height: 0; font-size: 14px">
         ${ICON.bag}<span>עגלה</span><span style="font-variant-numeric: tabular-nums">(${this.cartCount()})</span>
       </button>
@@ -359,7 +359,7 @@ class App {
     const s = this.state;
     return `
     <div data-act="closeNav" aria-hidden="true" style="position: fixed; inset: 0; z-index: 64; background: rgba(24,30,24,0.34); transition: opacity 0.3s ease; display: var(--nav-drawer-display, none); opacity: ${s.navOpen ? 1 : 0}; pointer-events: ${s.navOpen ? 'auto' : 'none'}"></div>
-    <aside role="dialog" aria-label="תפריט" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(300px, 84vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: var(--nav-drawer-display, none); transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${s.navOpen ? '0s' : '0.32s'}; transform: ${s.navOpen ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${s.navOpen ? 'visible' : 'hidden'}">
+    <aside role="dialog" aria-label="תפריט" style="position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 66; width: min(300px, 84vw); background: var(--color-neutral-100); border-inline-start: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: var(--nav-drawer-display, none); transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${s.navOpen ? '0s' : '0.32s'}; transform: ${s.navOpen ? 'translateX(0)' : 'translateX(-105%)'}; visibility: ${s.navOpen ? 'visible' : 'hidden'}">
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 21px 26px; border-bottom: 1px solid var(--color-divider)">
         <span style="font-family: var(--font-heading); font-size: 19px; font-weight: 400; letter-spacing: 0.12em">GAYA</span>
         <button class="btn btn-secondary btn-icon" data-act="closeNav" aria-label="סגירת התפריט">${ICON.close16}</button>
