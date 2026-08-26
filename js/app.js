@@ -25,7 +25,7 @@ class App {
       admTab: 'products', site: Object.assign({}, SITE),
       ordFilter: 'all', ordStates: {}, ordOpenRef: null,
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
-      nf: this.blankNf(),
+      nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0,
       admAuthed, admPass: '', admGateError: false
     };
     this._fadeT = null;
@@ -86,7 +86,8 @@ class App {
       admForm: true, editId: id,
       nf: { name: p.name, price: String(p.price), stock: String(this.stockOf(id)),
             cat: p.cat === 'hydro' ? 'hydro' : 'kokedama',
-            size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' }
+            size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
+      nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0
     });
   }
   saveEdit() {
@@ -227,8 +228,8 @@ class App {
       case 'admEdit': this.openEditor(id); break;
       case 'admInc': this.bumpStock(id, 1); break;
       case 'admDec': this.bumpStock(id, -1); break;
-      case 'admOpenNew': this.setState({ admForm: true, editId: null, nf: this.blankNf() }); break;
-      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf() }); break;
+      case 'admOpenNew': this.setState({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0 }); break;
+      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0 }); break;
       case 'nfSetKok': this.setNf('cat', 'kokedama'); break;
       case 'nfSetHyd': this.setNf('cat', 'hydro'); break;
       case 'nfSave': (s.editId ? this.saveEdit() : this.saveNf()); break;
@@ -249,6 +250,48 @@ class App {
     if (t.dataset.siteKey) this.setSite(t.dataset.siteKey, t.value);
     else if (t.dataset.nfField) this.setNf(t.dataset.nfField, t.value);
     else if (t.dataset.admPass) this.state.admPass = t.value;
+    else if (t.dataset.nfImgFile) { const f = t.files && t.files[0]; t.value = ''; if (f) this.uploadProductImage(this.state.editId, f); }
+  }
+
+  resizeImageFile(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+          else { width = Math.round(width * (maxDim / height)); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('שינוי גודל התמונה נכשל')), 'image/jpeg', quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('קובץ התמונה לא תקין')); };
+      img.src = url;
+    });
+  }
+
+  async uploadProductImage(id, file) {
+    if (!id) return;
+    this.setState({ nfImgStatus: 'uploading', nfImgError: '' });
+    try {
+      const blob = await this.resizeImageFile(file, 1600, 0.85);
+      const res = await fetch('/api/upload-image?id=' + encodeURIComponent(id), {
+        method: 'POST',
+        headers: { 'Content-Type': blob.type, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+        body: blob
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || ('שגיאה בהעלאה (' + res.status + ')'));
+      }
+      this.setState({ nfImgStatus: 'done', nfImgBust: Date.now() });
+    } catch (err) {
+      this.setState({ nfImgStatus: 'error', nfImgError: (err && err.message) || 'ההעלאה נכשלה' });
+    }
   }
 
   tryAdminGate() {
@@ -690,7 +733,7 @@ class App {
         <a href="#" data-act="goCatFromProduct">${prod.cat === 'hydro' ? 'הידרופוני' : 'קוקודמות'}</a><span style="opacity: 0.5">${ICON.crumb}</span>
         <span>${esc(prod.name)}</span>
       </nav>
-      <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 56px; padding: 12px var(--pg) 80px; align-items: start">
+      <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 56px; padding: 12px var(--pg) 80px; align-items: start; max-width: 1180px; margin-inline: auto">
         <div style="display: grid; gap: 14px; min-width: 0">
           ${prod.model ? `
           <div class="plate" style="position: relative; aspect-ratio: 4/5; min-width: 0; overflow: hidden">
@@ -1140,6 +1183,8 @@ class App {
     const s = this.state;
     const open = s.admForm;
     const nf = s.nf;
+    const editingProd = s.editId ? this.catalog().find((x) => x.id === s.editId) : null;
+    const imgSrc = editingProd && editingProd.img ? editingProd.img + '?v=' + (s.nfImgBust || 0) : '';
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -1164,8 +1209,18 @@ class App {
           <div class="field" style="grid-column: 1 / -1"><label for="a-desc">תיאור</label><textarea class="input" id="a-desc" data-nf-field="desc" placeholder="שתי שורות על הצמח ועל הטיפול בו">${esc(nf.desc)}</textarea></div>
         </div>
         <div style="display: grid; grid-template-columns: 132px 1fr; gap: 18px; align-items: start">
-          <div class="plate" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; background: var(--color-neutral-200); display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.18em; color: var(--color-neutral-800)">תמונה</div>
-          <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">${s.editId ? 'להחלפת התמונה יש להוסיף קובץ לתיקייה assets/images ולעדכן את הנתיב בקטלוג (js/data.js). אותה תמונה מופיעה בכרטיס המוצר בקטלוג.' : 'מוצר חדש נוצר בלי תמונה ומסומן בקטלוג הניהול. תמונה מתווספת מאוחר יותר בקוד.'}</p>
+          <div class="plate" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; background: var(--color-neutral-200)">
+            ${imgSrc ? `<img src="${esc(imgSrc)}" alt="" style="width: 100%; height: 100%; object-fit: cover; display: block">` : `<div style="width: 100%; height: 100%; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.18em; color: var(--color-neutral-800)">תמונה</div>`}
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            ${s.editId ? `
+            <label class="btn btn-secondary" for="a-img-file" style="align-self: flex-start; cursor: pointer; ${s.nfImgStatus === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.nfImgStatus === 'uploading' ? 'מעלה…' : 'החלפת תמונה'}</label>
+            <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp" data-nf-img-file="1" style="display: none">
+            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי בתוך דקות ספורות.</p>` : ''}
+            ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.nfImgError)}</p>` : ''}
+            <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG או WEBP — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
+            ` : `<p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">מוצר חדש נוצר בלי תמונה. אחרי השמירה אפשר לפתוח אותו שוב ולהוסיף תמונה.</p>`}
+          </div>
         </div>
       </div>
       <div style="border-top: 1px solid var(--color-divider); padding: 20px 26px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--color-bg)">
