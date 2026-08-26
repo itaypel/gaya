@@ -25,7 +25,7 @@ class App {
       admTab: 'products', site: Object.assign({}, SITE),
       ordFilter: 'all', ordStates: {}, ordOpenRef: null,
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
-      nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0,
+      nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
       admAuthed, admPass: '', admGateError: false
     };
     this._fadeT = null;
@@ -87,7 +87,7 @@ class App {
       nf: { name: p.name, price: String(p.price), stock: String(this.stockOf(id)),
             cat: p.cat === 'hydro' ? 'hydro' : 'kokedama',
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
-      nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0
+      nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null
     });
   }
   saveEdit() {
@@ -127,9 +127,9 @@ class App {
     const nf = this.state.nf;
     const name = (nf.name || '').trim();
     if (!name) return;
-    const id = 'x' + (this.state.extra.length + 1);
+    const id = this.state.nfNewId || ('x' + (this.state.extra.length + 1));
     const item = {
-      id, img: '', cat: nf.cat === 'hydro' ? 'hydro' : undefined,
+      id, img: this.state.nfImgStatus === 'done' ? (BLOB_IMG_BASE + id + '.jpg') : '', cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       name, price: Number(nf.price) || 0,
       size: (nf.size || '').trim() || 'בינונית',
       light: (nf.light || '').trim() || 'אור עקיף בהיר',
@@ -141,7 +141,7 @@ class App {
       extra: st.extra.concat([item]),
       stock: Object.assign({}, st.stock, { [id]: Number(nf.stock) || 0 }),
       admForm: false,
-      nf: this.blankNf()
+      nf: this.blankNf(), nfNewId: null, nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0
     }));
   }
 
@@ -228,8 +228,8 @@ class App {
       case 'admEdit': this.openEditor(id); break;
       case 'admInc': this.bumpStock(id, 1); break;
       case 'admDec': this.bumpStock(id, -1); break;
-      case 'admOpenNew': this.setState({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0 }); break;
-      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0 }); break;
+      case 'admOpenNew': this.setState((st) => ({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: 'x' + (st.extra.length + 1) })); break;
+      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null }); break;
       case 'nfSetKok': this.setNf('cat', 'kokedama'); break;
       case 'nfSetHyd': this.setNf('cat', 'hydro'); break;
       case 'nfSave': (s.editId ? this.saveEdit() : this.saveNf()); break;
@@ -250,7 +250,7 @@ class App {
     if (t.dataset.siteKey) this.setSite(t.dataset.siteKey, t.value);
     else if (t.dataset.nfField) this.setNf(t.dataset.nfField, t.value);
     else if (t.dataset.admPass) this.state.admPass = t.value;
-    else if (t.dataset.nfImgFile) { const f = t.files && t.files[0]; t.value = ''; if (f) this.uploadProductImage(this.state.editId, f); }
+    else if (t.dataset.nfImgFile) { const f = t.files && t.files[0]; t.value = ''; if (f) this.uploadProductImage(this.state.editId || this.state.nfNewId, f); }
   }
 
   resizeImageFile(file, maxDim, quality) {
@@ -736,17 +736,17 @@ class App {
       <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 56px; padding: 12px var(--pg) 80px; align-items: start; max-width: 1180px; margin-inline: auto">
         <div style="display: grid; gap: 14px; min-width: 0">
           ${prod.model ? `
-          <div class="plate" style="position: relative; aspect-ratio: 4/5; min-width: 0; overflow: hidden">
+          <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden">
             <model-viewer src="${esc(prod.model)}" alt="${esc(prod.name)} — סריקה תלת־ממדית" camera-controls auto-rotate loading="eager" interaction-prompt="none" interpolation-decay="200" shadow-intensity="1" style="position: absolute; inset: 0; width: 100%; height: 100%; background: var(--color-neutral-200); display: block"></model-viewer>
           </div>
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : prod.embed ? `
-          <div class="plate" style="position: relative; aspect-ratio: 4/5; min-width: 0; overflow: hidden">
+          <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden">
             <iframe src="${prod.embed}" title="${esc(prod.name)} — סריקה תלת־ממדית" allow="fullscreen; xr-spatial-tracking" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" loading="lazy" style="position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block"></iframe>
           </div>
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : `
-          <div class="plate" style="position: relative; aspect-ratio: 4/5; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
+          <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
             ${prod.img ? `<img src="${prod.img}" alt="${esc(prod.name)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
           </div>`}
           ${related.length > 0 ? `
@@ -1184,7 +1184,9 @@ class App {
     const open = s.admForm;
     const nf = s.nf;
     const editingProd = s.editId ? this.catalog().find((x) => x.id === s.editId) : null;
-    const imgSrc = editingProd && editingProd.img ? editingProd.img + '?v=' + (s.nfImgBust || 0) : '';
+    const uploadTargetId = s.editId || s.nfNewId;
+    const imgSrc = editingProd && editingProd.img ? editingProd.img + '?v=' + (s.nfImgBust || 0)
+      : (!editingProd && s.nfImgStatus === 'done' && s.nfNewId) ? BLOB_IMG_BASE + s.nfNewId + '.jpg' + '?v=' + s.nfImgBust : '';
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -1213,13 +1215,13 @@ class App {
             ${imgSrc ? `<img src="${esc(imgSrc)}" alt="" style="width: 100%; height: 100%; object-fit: cover; display: block">` : `<div style="width: 100%; height: 100%; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.18em; color: var(--color-neutral-800)">תמונה</div>`}
           </div>
           <div style="display: flex; flex-direction: column; gap: 10px">
-            ${s.editId ? `
-            <label class="btn btn-secondary" for="a-img-file" style="align-self: flex-start; cursor: pointer; ${s.nfImgStatus === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.nfImgStatus === 'uploading' ? 'מעלה…' : 'החלפת תמונה'}</label>
+            ${uploadTargetId ? `
+            <label class="btn btn-secondary" for="a-img-file" style="align-self: flex-start; cursor: pointer; ${s.nfImgStatus === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.nfImgStatus === 'uploading' ? 'מעלה…' : (imgSrc ? 'החלפת תמונה' : 'הוספת תמונה')}</label>
             <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp" data-nf-img-file="1" style="display: none">
-            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי בתוך דקות ספורות.</p>` : ''}
+            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה עודכנה — תופיע באתר החי בתוך דקות ספורות.' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
             ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.nfImgError)}</p>` : ''}
             <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG או WEBP — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
-            ` : `<p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">מוצר חדש נוצר בלי תמונה. אחרי השמירה אפשר לפתוח אותו שוב ולהוסיף תמונה.</p>`}
+            ` : ''}
           </div>
         </div>
       </div>
