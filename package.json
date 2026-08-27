@@ -2,6 +2,8 @@
   "name": "gaya",
   "private": true,
   "dependencies": {
-    "@vercel/blob": "^2.8.0"
+    "@vercel/blob": "^2.8.0",
+    "heic-convert": "^2.1.0",
+    "sharp": "^0.35.4"
   }
 }

@@ -1,7 +1,10 @@
 const { put } = require('@vercel/blob');
+const convertHeic = require('heic-convert');
+const sharp = require('sharp');
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const HEIC_TYPES = ['image/heic', 'image/heif'];
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -22,7 +25,8 @@ module.exports = async (req, res) => {
   }
 
   const contentType = req.headers['content-type'] || '';
-  if (!ALLOWED_TYPES.includes(contentType)) {
+  const isHeic = HEIC_TYPES.includes(contentType);
+  if (!ALLOWED_TYPES.includes(contentType) && !isHeic) {
     res.status(400).json({ error: 'unsupported image type' });
     return;
   }
@@ -48,12 +52,23 @@ module.exports = async (req, res) => {
     return;
   }
 
+  let outBuffer = body;
+  if (isHeic) {
+    try {
+      const jpegBuffer = await convertHeic({ buffer: body, format: 'JPEG', quality: 0.9 });
+      outBuffer = await sharp(jpegBuffer).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+    } catch (err) {
+      res.status(422).json({ error: 'heic conversion failed', detail: String(err && err.message || err) });
+      return;
+    }
+  }
+
   try {
-    const blob = await put(`products/${id}.jpg`, body, {
+    const blob = await put(`products/${id}.jpg`, outBuffer, {
       access: 'public',
       addRandomSuffix: false,
       allowOverwrite: true,
-      contentType,
+      contentType: 'image/jpeg',
       cacheControlMaxAge: 300,
     });
     res.status(200).json({ url: blob.url });

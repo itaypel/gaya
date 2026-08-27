@@ -299,6 +299,12 @@ class App {
     });
   }
 
+  looksLikeHeic(file) {
+    const type = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+    return type === 'image/heic' || type === 'image/heif' || name.endsWith('.heic') || name.endsWith('.heif');
+  }
+
   resizeImageFile(file, maxDim, quality) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -306,7 +312,7 @@ class App {
       img.onload = () => {
         URL.revokeObjectURL(url);
         let { width, height } = img;
-        if (!width || !height) { reject(new Error('לא הצלחנו לקרוא את התמונה — ייתכן שהפורמט (למשל HEIC מאייפון) לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.')); return; }
+        if (!width || !height) { reject(new Error('לא הצלחנו לקרוא את התמונה — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.')); return; }
         if (width > maxDim || height > maxDim) {
           if (width >= height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
           else { width = Math.round(width * (maxDim / height)); height = maxDim; }
@@ -316,7 +322,7 @@ class App {
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
         canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('שינוי גודל התמונה נכשל')), 'image/jpeg', quality);
       };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('לא הצלחנו לקרוא את התמונה — ייתכן שהפורמט (למשל HEIC מאייפון) לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.')); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('לא הצלחנו לקרוא את התמונה — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.')); };
       img.src = url;
     });
   }
@@ -325,15 +331,23 @@ class App {
     if (!id) return;
     this.setState({ nfImgStatus: 'uploading', nfImgError: '' });
     try {
-      const blob = await this.withTimeout(this.resizeImageFile(file, 1600, 0.85), 15000, 'לא הצלחנו לעבד את התמונה בזמן סביר — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.');
+      const isHeic = this.looksLikeHeic(file);
+      // HEIC can't be decoded by <canvas> in the browser, so send it to the
+      // server as-is (under the platform's 4.5MB request-body limit) and let
+      // the API route convert + resize it there instead.
+      if (isHeic && file.size > 4 * 1024 * 1024) {
+        throw new Error('התמונה גדולה מדי (מעל 4MB). אפשר לצמצם אותה או לצלם באיכות נמוכה יותר ולנסות שוב.');
+      }
+      const body = isHeic ? file : await this.withTimeout(this.resizeImageFile(file, 1600, 0.85), 15000, 'לא הצלחנו לעבד את התמונה בזמן סביר — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.');
+      const contentType = isHeic ? (file.type || 'image/heic') : body.type;
       const controller = new AbortController();
-      const abortT = setTimeout(() => controller.abort(), 20000);
+      const abortT = setTimeout(() => controller.abort(), 30000);
       let res;
       try {
         res = await fetch('/api/upload-image?id=' + encodeURIComponent(id), {
           method: 'POST',
-          headers: { 'Content-Type': blob.type, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
-          body: blob,
+          headers: { 'Content-Type': contentType, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+          body,
           signal: controller.signal
         });
       } catch (fetchErr) {
@@ -344,7 +358,13 @@ class App {
       }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || ('שגיאה בהעלאה (' + res.status + ')'));
+        const known = {
+          'heic conversion failed': 'לא הצלחנו להמיר את קובץ ה-HEIC. אפשר לנסות תמונה אחרת או לשמור אותה כ-JPG.',
+          'image too large': 'התמונה גדולה מדי. אפשר לצמצם אותה ולנסות שוב.',
+          'unsupported image type': 'סוג הקובץ לא נתמך. יש להעלות JPG, PNG, WEBP או תמונת אייפון (HEIC).',
+          'unauthorized': 'ההעלאה נחסמה — יש להתחבר מחדש לפאנל הניהול ולנסות שוב.'
+        };
+        throw new Error(known[data.error] || data.error || ('שגיאה בהעלאה (' + res.status + ')'));
       }
       this.setState({ nfImgStatus: 'done', nfImgBust: Date.now() });
     } catch (err) {
@@ -1275,10 +1295,10 @@ class App {
           <div style="display: flex; flex-direction: column; gap: 10px">
             ${uploadTargetId ? `
             <label class="btn btn-secondary" for="a-img-file" style="align-self: flex-start; cursor: pointer; ${s.nfImgStatus === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.nfImgStatus === 'uploading' ? 'מעלה…' : (imgSrc ? 'החלפת תמונה' : 'הוספת תמונה')}</label>
-            <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp" data-nf-img-file="1" style="display: none">
+            <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-nf-img-file="1" style="display: none">
             ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה עודכנה — תופיע באתר החי בתוך דקות ספורות.' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
             ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.nfImgError)}</p>` : ''}
-            <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG או WEBP — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
+            <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG, WEBP או תמונת אייפון (HEIC) — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
             ` : ''}
           </div>
         </div>
