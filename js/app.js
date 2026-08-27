@@ -42,6 +42,17 @@ class App {
       const past = window.scrollY > 64;
       if (past !== this.state.scrolled) { this.state.scrolled = past; this.render(); }
     }, { passive: true });
+    window.addEventListener('popstate', () => {
+      const route = this.parseRoute(location.hash);
+      if (!route) return;
+      Object.assign(this.state, route);
+      this.render();
+      window.scrollTo(0, 0);
+    });
+    const initialRoute = this.parseRoute(location.hash);
+    if (initialRoute) Object.assign(this.state, initialRoute);
+    const initialHash = this.routeFromState(this.state);
+    if (initialHash && location.hash !== initialHash) history.replaceState(null, '', initialHash);
     this.render();
   }
 
@@ -50,7 +61,35 @@ class App {
     Object.assign(this.state, p);
     this.render();
   }
-  nav(patch) { this.setState(patch); window.scrollTo(0, 0); }
+  routeFromState(s) {
+    switch (s.screen) {
+      case 'home': return '#/';
+      case 'category': return '#/category/' + (s.cat === 'hydro' ? 'hydro' : 'kokedama');
+      case 'product': return '#/product/' + encodeURIComponent(s.prod);
+      case 'care': return '#/care';
+      case 'checkout': return '#/checkout';
+      case 'access': return '#/access';
+      case 'terms': return '#/terms';
+      default: return null; // admin screens stay out of the URL
+    }
+  }
+  parseRoute(hash) {
+    const parts = String(hash || '').replace(/^#\/?/, '').split('/').filter(Boolean).map((p) => decodeURIComponent(p));
+    if (parts.length === 0) return { screen: 'home' };
+    if (parts[0] === 'category') return { screen: 'category', cat: parts[1] === 'hydro' ? 'hydro' : 'kokedama' };
+    if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1] };
+    if (parts[0] === 'care') return { screen: 'care' };
+    if (parts[0] === 'checkout') return { screen: 'checkout' };
+    if (parts[0] === 'access') return { screen: 'access' };
+    if (parts[0] === 'terms') return { screen: 'terms' };
+    return { screen: 'home' };
+  }
+  nav(patch) {
+    this.setState(patch);
+    window.scrollTo(0, 0);
+    const route = this.routeFromState(this.state);
+    if (route && location.hash !== route) history.pushState(null, '', route);
+  }
 
   // ── data helpers (ported 1:1) ──────────────────────────────────────────
   catalog() {
@@ -253,6 +292,13 @@ class App {
     else if (t.dataset.nfImgFile) { const f = t.files && t.files[0]; t.value = ''; if (f) this.uploadProductImage(this.state.editId || this.state.nfNewId, f); }
   }
 
+  withTimeout(promise, ms, message) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(message)), ms);
+      promise.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+    });
+  }
+
   resizeImageFile(file, maxDim, quality) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -260,6 +306,7 @@ class App {
       img.onload = () => {
         URL.revokeObjectURL(url);
         let { width, height } = img;
+        if (!width || !height) { reject(new Error('לא הצלחנו לקרוא את התמונה — ייתכן שהפורמט (למשל HEIC מאייפון) לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.')); return; }
         if (width > maxDim || height > maxDim) {
           if (width >= height) { height = Math.round(height * (maxDim / width)); width = maxDim; }
           else { width = Math.round(width * (maxDim / height)); height = maxDim; }
@@ -269,7 +316,7 @@ class App {
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
         canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('שינוי גודל התמונה נכשל')), 'image/jpeg', quality);
       };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('קובץ התמונה לא תקין')); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('לא הצלחנו לקרוא את התמונה — ייתכן שהפורמט (למשל HEIC מאייפון) לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.')); };
       img.src = url;
     });
   }
@@ -278,12 +325,23 @@ class App {
     if (!id) return;
     this.setState({ nfImgStatus: 'uploading', nfImgError: '' });
     try {
-      const blob = await this.resizeImageFile(file, 1600, 0.85);
-      const res = await fetch('/api/upload-image?id=' + encodeURIComponent(id), {
-        method: 'POST',
-        headers: { 'Content-Type': blob.type, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
-        body: blob
-      });
+      const blob = await this.withTimeout(this.resizeImageFile(file, 1600, 0.85), 15000, 'לא הצלחנו לעבד את התמונה בזמן סביר — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.');
+      const controller = new AbortController();
+      const abortT = setTimeout(() => controller.abort(), 20000);
+      let res;
+      try {
+        res = await fetch('/api/upload-image?id=' + encodeURIComponent(id), {
+          method: 'POST',
+          headers: { 'Content-Type': blob.type, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+          body: blob,
+          signal: controller.signal
+        });
+      } catch (fetchErr) {
+        if (fetchErr && fetchErr.name === 'AbortError') throw new Error('ההעלאה נמשכה יותר מדי זמן — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+        throw new Error('שגיאת רשת בהעלאה — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+      } finally {
+        clearTimeout(abortT);
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || ('שגיאה בהעלאה (' + res.status + ')'));
@@ -587,7 +645,7 @@ class App {
         </div>
       </section>
 
-      <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider)">
+      <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider); max-width: 1180px; margin-inline: auto">
         <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 34px">
           <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">I</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.storyKicker)}</span>
@@ -598,10 +656,10 @@ class App {
             <p style="margin: 0; font-size: 16.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.storyIntro)}</p>
             <hr class="hr" style="margin: 2px 0">
             <p style="margin: 0; font-size: 15.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.storyFounders)}</p>
-            <div class="plate" style="position: relative; flex: 1; min-height: clamp(220px, 24vw, 340px); min-width: 0; overflow: hidden"><img src="${STORY_IMG_2}" alt="פינה בסטודיו"></div>
+            <div class="plate" style="position: relative; flex: 1; max-width: 420px; min-height: clamp(220px, 24vw, 340px); min-width: 0; overflow: hidden"><img src="${STORY_IMG_2}" alt="פינה בסטודיו"></div>
           </div>
           <div style="display: flex; flex-direction: column; gap: 20px; min-width: 0">
-            <div class="plate" style="position: relative; aspect-ratio: 4/5; min-width: 0; overflow: hidden"><img src="${STORY_IMG_1}" alt="הסטודיו של GAYA"></div>
+            <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden"><img src="${STORY_IMG_1}" alt="הסטודיו של GAYA"></div>
             <div style="display: flex; flex-direction: column; gap: 12px">
               <h3 style="font-size: 22px; font-weight: 400">${esc(site.kokedamaQ)}</h3>
               <p style="margin: 0; font-size: 15px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.kokedamaA)}</p>
