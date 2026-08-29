@@ -12,7 +12,7 @@ function nl2br(str) { return esc(str).replace(/\n/g, '<br>'); }
 // ordinary shoppers from wandering into the staff screens via the footer link.
 // Once real orders/customers exist, this must be replaced by server-side auth —
 // the admin screen must not ship in the same public bundle as the storefront.
-const ADMIN_GATE_PASSCODE = 'gaya-staff-2026';
+const ADMIN_GATE_PASSCODE = 'oren5422';
 
 class App {
   constructor(root) {
@@ -118,6 +118,7 @@ class App {
       case 'checkout': return '#/checkout';
       case 'access': return '#/access';
       case 'terms': return '#/terms';
+      case 'shipping': return '#/shipping';
       default: return null; // admin screens stay out of the URL
     }
   }
@@ -130,6 +131,7 @@ class App {
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
     if (parts[0] === 'terms') return { screen: 'terms' };
+    if (parts[0] === 'shipping') return { screen: 'shipping' };
     return { screen: 'home' };
   }
   nav(patch) {
@@ -277,6 +279,7 @@ class App {
       case 'admGateSubmit': this.tryAdminGate(); break;
       case 'goAccess': this.nav({ screen: 'access', a11y: false }); break;
       case 'goTerms': this.nav({ screen: 'terms' }); break;
+      case 'goShipping': this.nav({ screen: 'shipping' }); break;
       case 'goCatFromProduct': {
         const prod = this.catalog().find((x) => x.id === s.prod) || CATALOG[0];
         this.nav({ screen: 'category', cat: prod.cat === 'hydro' ? 'hydro' : 'kokedama' });
@@ -450,6 +453,7 @@ class App {
           ${s.screen === 'checkout' ? this.renderCheckout() : ''}
           ${s.screen === 'access' ? this.renderAccess() : ''}
           ${s.screen === 'terms' ? this.renderTerms() : ''}
+          ${s.screen === 'shipping' ? this.renderShippingPolicy() : ''}
           ${s.screen === 'adminGate' ? this.renderAdminGate() : ''}
           ${s.screen === 'admin' ? this.renderAdmin() : ''}
         </div>
@@ -567,6 +571,7 @@ class App {
         <div style="display: flex; flex-direction: column; gap: 11px; min-width: 0">
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.28em; color: var(--color-accent-700)">מידע</span>
           <a href="#" data-act="goTerms">תקנון, ביטולים ופרטיות</a>
+          <a href="#" data-act="goShipping">משלוחים והחזרות</a>
           <a href="#" data-act="goAccess">הצהרת נגישות</a>
         </div>
       </div>
@@ -1085,6 +1090,46 @@ class App {
           <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">פרטיות ועוגיות</h2><p style="margin: 0">הפרטים הנאספים בעת ההזמנה — שם, טלפון, דואר אלקטרוני וכתובת — נדרשים לביצוע ההזמנה ולמשלוח, ומשמשים לכך בלבד. הם נשמרים בהתאם לחוק הגנת הפרטיות, תשמ״א-1981 ואינם מועברים לצד שלישי למעט ספק המשלוחים וספק הסליקה. האתר עושה שימוש בעוגיות תפעוליות לשמירת תוכן העגלה. לכל פנייה בנושא מידע אישי, כולל בקשת עיון, תיקון או מחיקה: [כתובת דואר אלקטרוני].</p></div>
           <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">שיפוט</h2><p style="margin: 0">על תקנון זה יחולו דיני מדינת ישראל, וסמכות השיפוט הייחודית תהיה לבתי המשפט במחוז תל אביב.</p></div>
           <p style="margin: 0; font-size: 13.5px; color: var(--color-neutral-600)">התקנון עודכן בתאריך [להשלים]. הסעיפים בסוגריים מרובעים דורשים השלמה בפרטים האמיתיים לפני עלייה לאוויר.</p>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  renderShippingPolicy() {
+    return `
+    <div data-screen-label="משלוחים והחזרות">
+      <section style="padding: clamp(36px, 5vw, 60px) var(--pg) 84px; max-width: 760px">
+        <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מידע לפני הזמנה</span>
+        <h1 style="font-size: clamp(30px, 3.4vw, 44px); font-weight: 400; margin: 14px 0 26px">מדיניות משלוחים, תנאי רכישה והחזרות</h1>
+        <div style="display: flex; flex-direction: column; gap: 28px; font-size: 15.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">
+          <div>
+            <h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">מדיניות משלוחים</h2>
+            <ul style="margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 10px">
+              <li>ניתן לבצע איסוף עצמי, בתיאום מראש, ממשתלת "על הדרך" — ללא תשלום.</li>
+              <li>אזור החלוקה של המשלוחים הוא מהרצליה ועד אשקלון.</li>
+              <li>זמני אספקה: באיסוף עצמי — עד 48 שעות. במשלוח — עד 5 ימי עסקים.</li>
+              <li>במקרה שמוצר או צבע חסרים, והלקוח מעודכן בכך על ידי הסטודיו ובוחר שלא להחליף לצמח או לצבע אחר — המשלוח יישלח כשהחוסרים יגיעו, בתוספת דמי משלוח בהתאם לעיר המגורים, בטווח שבין 28 ₪ ל־100 ₪.</li>
+              <li>עבור "מוצרים כבדים" — עצים, שקי תערובת, שקי טוף ושקי דישון — עלות ההובלה נקבעת בהתאם למשקל המוצרים ולכמות השקים.</li>
+              <li>אספקה לאזורים מחוץ לטווח החלוקה מותנית בתיאום מול המשתלה.</li>
+              <li>האספקה היא עד לבית הלקוח, ומותנית בנגישות סבירה — לרבות מעלית בבניינים רבי קומות. יש לציין בהערות ההזמנה כל בעיית נגישות, כגון היעדר מעלית; במקרה של אי-נגישות, יתואם עם הלקוח חיוב נוסף בשיחה חוזרת מהמשתלה.</li>
+              <li>הזמנות למשרדים, למגדלים או ללקוחות פרטיים שאין בקרבת ביתם חניה מוסדרת — האיסוף ייעשה ישירות מהרכב, אלא אם הלקוח דואג מראש לאישור כניסה או חניה המאפשרים פריקה במקום. ביצוע ההזמנה מהווה הסכמה לתנאי זה.</li>
+              <li>לאחר קבלת ההזמנה ניצור קשר במקרה של שינויים, חוסרים או הבדלי צבע, וכן לתיאום מועד האספקה הסופי כשההזמנה מוכנה.</li>
+            </ul>
+          </div>
+          <div>
+            <h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">תנאי רכישה</h2>
+            <p style="margin: 0">כל טקסט באתר הכתוב בלשון זכר מכוון לנשים ולגברים כאחד. על הרוכש להיות בגיר, בגיל 18 ומעלה, ובעל כרטיס אשראי תקף ופעיל.</p>
+          </div>
+          <div>
+            <h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">מדיניות החזרות</h2>
+            <ul style="margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 10px">
+              <li>ניתן להחזיר את ההזמנה שסופקה, במלואה או בחלקה, בתוך 48 שעות ולקבל זיכוי מלא בגין המוצרים המוחזרים — למעט עלות המשלוח — בתנאי שהמוצרים הוחזרו למשתלת "על הדרך" בראשון לציון, מפעילת האתר, כשהם באריזתם המקורית ובמצב שבו סופקו.</li>
+              <li>אין החזרה או החלפה של מוצרים מקטגוריית הפרחים, לרבות זרים וסידורי פרחים.</li>
+              <li>אין החזרה או החלפה לצמח הנשתל בתוך כד.</li>
+              <li>יש להודיע על כוונת ההחזרה בתוך 12 שעות ממועד קבלת ההזמנה, בטל׳ [מספר טלפון].</li>
+            </ul>
+            <p style="margin: 14px 0 0; font-size: 13.5px; color: var(--color-neutral-600)">מדיניות זו היא בנוסף לזכות הביטול על פי חוק הגנת הצרכן, המפורטת בעמוד <a href="#" data-act="goTerms">התקנון</a>.</p>
+          </div>
         </div>
       </section>
     </div>`;
