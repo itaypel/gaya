@@ -76,6 +76,11 @@ const STOCK = { p1: 3, p2: 6, p3: 4, p4: 2, p5: 5, p6: 3, p7: 0, p8: 7, p9: 3, p
 // a fixed path keyed by its id, so re-uploading the same id overwrites in place.
 const BLOB_IMG_BASE = 'https://n5mm0fqiav7j7uht.public.blob.vercel-storage.com/products/';
 
+// Admin edits to the catalog (price/stock/new products/removals) are saved here
+// as one JSON file, fetched on every page load and merged over CATALOG/STOCK
+// below — same fixed-path-overwrite pattern as the product photos.
+const BLOB_DATA_URL = 'https://n5mm0fqiav7j7uht.public.blob.vercel-storage.com/data/catalog.json';
+
 const CATALOG = [
   { id: 'p1', img: '', model: 'assets/models/kokedama-briki-chiton.glb', name: 'קוקודמה בריכיכיטון', price: 270, size: 'בינונית', light: 'אור עקיף בהיר', water: 'טבילה אחת לשבוע', desc: 'עלים דמויי קרן איל, גדלים כלפי חוץ. הצמח שנראה הכי טוב תלוי מהתקרה.' },
   { id: 'p2', img: BLOB_IMG_BASE + 'p2.jpg', name: 'קוקודמה דרצנה גולדן', price: 250, size: 'בינונית', light: 'אור עקיף בינוני', water: 'טבילה אחת לשבוע', desc: 'פס זהוב לאורך העלה הצר. עומדת זקופה ומתאימה למדף גבוה.' },

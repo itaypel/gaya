@@ -26,7 +26,7 @@ class App {
       ordFilter: 'all', ordStates: {}, ordOpenRef: null,
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
-      admAuthed, admPass: '', admGateError: false
+      admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: ''
     };
     this._fadeT = null;
     root.addEventListener('click', (e) => this.handleClick(e));
@@ -54,12 +54,60 @@ class App {
     const initialHash = this.routeFromState(this.state);
     if (initialHash && location.hash !== initialHash) history.replaceState(null, '', initialHash);
     this.render();
+    this._catalogLoadPromise = this.loadCatalogOverrides();
   }
 
   setState(patch) {
     const p = typeof patch === 'function' ? patch(this.state) : patch;
     Object.assign(this.state, p);
     this.render();
+  }
+  async loadCatalogOverrides() {
+    try {
+      const res = await fetch(BLOB_DATA_URL, { cache: 'no-store' });
+      if (!res.ok) return; // 404 = no admin edits saved yet, keep the shipped defaults
+      this._catalogEtag = res.headers.get('etag') || null;
+      const data = await res.json();
+      if (!data || typeof data !== 'object') return;
+      this.setState({
+        edits: (data.edits && typeof data.edits === 'object') ? data.edits : {},
+        removed: (data.removed && typeof data.removed === 'object') ? data.removed : {},
+        stock: Object.assign({}, STOCK, (data.stock && typeof data.stock === 'object') ? data.stock : {}),
+        extra: Array.isArray(data.extra) ? data.extra : []
+      });
+    } catch (e) {
+      // offline or blocked — visitors still see the last-deployed catalog
+    }
+  }
+  async persistCatalog() {
+    // Make sure this session has the latest saved catalog before writing —
+    // otherwise an action fired right after page load could send a stale
+    // snapshot and silently undo changes saved from another session.
+    if (this._catalogLoadPromise) { await this._catalogLoadPromise; this._catalogLoadPromise = null; }
+    this.setState({ catalogSyncStatus: 'saving' });
+    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra };
+    try {
+      const headers = { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE };
+      if (this._catalogEtag) headers['X-Catalog-Etag'] = this._catalogEtag;
+      const res = await fetch('/api/save-catalog', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+      if (res.status === 409) {
+        // Someone else (another tab/device) saved in between — refuse to
+        // silently clobber it. Re-sync and let the admin retry deliberately.
+        this._catalogEtag = null;
+        await this.loadCatalogOverrides();
+        throw new Error('מישהו אחר שמר שינויים באותו רגע. הנתונים עודכנו לגרסה העדכנית — בדקו ונסו שוב.');
+      }
+      if (!res.ok) throw new Error('save failed');
+      const data = await res.json().catch(() => ({}));
+      if (data.etag) this._catalogEtag = data.etag;
+      this.setState({ catalogSyncStatus: 'saved' });
+    } catch (e) {
+      this.setState({ catalogSyncStatus: 'error', catalogSyncError: (e && e.message) || '' });
+    }
   }
   routeFromState(s) {
     switch (s.screen) {
@@ -144,6 +192,7 @@ class App {
       stock: Object.assign({}, st.stock, { [editId]: Number(nf.stock) || 0 }),
       admForm: false, editId: null, nf: this.blankNf()
     }));
+    this.persistCatalog();
   }
   removeProduct() {
     const id = this.state.editId;
@@ -152,6 +201,7 @@ class App {
       removed: Object.assign({}, st.removed, { [id]: true }),
       admForm: false, editId: null, nf: this.blankNf()
     }));
+    this.persistCatalog();
   }
   stockOf(id) { const v = this.state.stock[id]; return v === undefined ? 0 : v; }
   bumpStock(id, d) {
@@ -160,6 +210,8 @@ class App {
       stock[id] = Math.max(0, (stock[id] === undefined ? 0 : stock[id]) + d);
       return { stock };
     });
+    clearTimeout(this._stockPersistT);
+    this._stockPersistT = setTimeout(() => this.persistCatalog(), 800);
   }
   setNf(k, v) { this.setState((st) => ({ nf: Object.assign({}, st.nf, { [k]: v }) })); }
   saveNf() {
@@ -182,6 +234,7 @@ class App {
       admForm: false,
       nf: this.blankNf(), nfNewId: null, nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0
     }));
+    this.persistCatalog();
   }
 
   swapCat(cat) {
@@ -273,6 +326,7 @@ class App {
       case 'nfSetHyd': this.setNf('cat', 'hydro'); break;
       case 'nfSave': (s.editId ? this.saveEdit() : this.saveNf()); break;
       case 'nfDelete': this.removeProduct(); break;
+      case 'retryCatalogSync': this.persistCatalog(); break;
       case 'ordShowAll': this.setState({ ordFilter: 'all' }); break;
       case 'ordShowNew': this.setState({ ordFilter: 'new' }); break;
       case 'ordShowPrep': this.setState({ ordFilter: 'prep' }); break;
@@ -1120,6 +1174,10 @@ class App {
         </div>
       </div>
 
+      ${s.catalogSyncStatus === 'saving' ? `<p style="margin: 18px 0 0; font-size: 12.5px; color: var(--color-neutral-600)">שומר שינויים…</p>`
+        : s.catalogSyncStatus === 'saved' ? `<p style="margin: 18px 0 0; font-size: 12.5px; color: var(--color-accent-700)">נשמר — יופיע לכל המבקרים באתר תוך כדקה.</p>`
+        : s.catalogSyncStatus === 'error' ? `<p style="margin: 18px 0 0; font-size: 12.5px; color: #b3261e">${esc(s.catalogSyncError) || 'השמירה נכשלה, השינוי נשאר רק אצלך.'} <button class="btn btn-ghost" data-act="retryCatalogSync" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">לנסות שוב</button></p>`
+        : ''}
       <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding: 24px 0">
         <div style="display: flex; gap: 10px; flex-wrap: wrap">
           <button class="btn ${s.admFilter === 'all' ? 'btn-primary' : 'btn-secondary'}" data-act="admShowAll">הכל</button>
