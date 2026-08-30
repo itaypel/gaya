@@ -114,7 +114,6 @@ class App {
       case 'home': return '#/';
       case 'category': return '#/category/' + (s.cat === 'hydro' ? 'hydro' : 'kokedama');
       case 'product': return '#/product/' + encodeURIComponent(s.prod);
-      case 'care': return '#/care';
       case 'checkout': return '#/checkout';
       case 'access': return '#/access';
       case 'terms': return '#/terms';
@@ -127,7 +126,6 @@ class App {
     if (parts.length === 0) return { screen: 'home' };
     if (parts[0] === 'category') return { screen: 'category', cat: parts[1] === 'hydro' ? 'hydro' : 'kokedama' };
     if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1] };
-    if (parts[0] === 'care') return { screen: 'care' };
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
     if (parts[0] === 'terms') return { screen: 'terms' };
@@ -273,7 +271,6 @@ class App {
       case 'goHome': this.nav({ screen: 'home', navOpen: false }); break;
       case 'goKokedama': this.nav({ screen: 'category', cat: 'kokedama', navOpen: false }); break;
       case 'goHydro': this.nav({ screen: 'category', cat: 'hydro', navOpen: false }); break;
-      case 'goCare': this.nav({ screen: 'care', navOpen: false }); break;
       case 'goCheckout': this.nav({ screen: 'checkout', open: false }); break;
       case 'goAdmin': this.nav(s.admAuthed ? { screen: 'admin' } : { screen: 'adminGate', admPass: '', admGateError: false }); break;
       case 'admGateSubmit': this.tryAdminGate(); break;
@@ -449,7 +446,6 @@ class App {
           ${s.screen === 'home' ? this.renderHome() : ''}
           ${s.screen === 'category' ? this.renderCategory() : ''}
           ${s.screen === 'product' ? this.renderProductScreen() : ''}
-          ${s.screen === 'care' ? this.renderCare() : ''}
           ${s.screen === 'checkout' ? this.renderCheckout() : ''}
           ${s.screen === 'access' ? this.renderAccess() : ''}
           ${s.screen === 'terms' ? this.renderTerms() : ''}
@@ -524,7 +520,6 @@ class App {
         <a href="#" data-act="goHome">דף הבית</a>
         <a href="#" data-act="goKokedama">קוקודמות</a>
         <a href="#" data-act="goHydro">הידרופוני</a>
-        <a href="#" data-act="goCare">טיפוח</a>
       </nav>
       <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="margin-inline-start: auto; color: #25D366">${ICON.whatsapp}</a>
       <button class="btn btn-secondary btn-icon" data-act="toggleNav" aria-label="פתיחת תפריט" aria-expanded="${s.navOpen}" style="display: var(--menu-btn-display, none)">${ICON.menu}</button>
@@ -547,7 +542,6 @@ class App {
         <a href="#" data-act="goHome" style="padding: 15px 16px">דף הבית</a>
         <a href="#" data-act="goKokedama" style="padding: 15px 16px">קוקודמות</a>
         <a href="#" data-act="goHydro" style="padding: 15px 16px">הידרופוני</a>
-        <a href="#" data-act="goCare" style="padding: 15px 16px">טיפוח</a>
       </nav>
     </aside>`;
   }
@@ -566,7 +560,6 @@ class App {
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.28em; color: var(--color-accent-700)">חנות</span>
           <a href="#" data-act="goKokedama">קוקודמות</a>
           <a href="#" data-act="goHydro">הידרופוני</a>
-          <a href="#" data-act="goCare">מדריך טיפוח</a>
         </div>
         <div style="display: flex; flex-direction: column; gap: 11px; min-width: 0">
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.28em; color: var(--color-accent-700)">מידע</span>
@@ -704,7 +697,6 @@ class App {
     const site = s.site;
     const kok = s.cat === 'kokedama';
     const all = this.catalog();
-    const featured = ['p1', 'p5', 'p9', 'h1'].map((id) => all.find((x) => x.id === id)).filter(Boolean);
     const catItems = all.filter((p) => (kok ? p.cat !== 'hydro' : p.cat === 'hydro'));
     const catTitle = kok ? site.kokTitle : site.hydTitle;
     const catBlurb = kok ? site.kokBlurb : site.hydBlurb;
@@ -719,7 +711,6 @@ class App {
           <p style="font-size: clamp(15px, 1.2vw, 17.5px); line-height: 1.9; margin: 0; color: var(--color-neutral-700)">${esc(site.heroBody)}</p>
           <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; justify-content: center">
             <button class="btn btn-primary" data-act="goKokedama" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta1)}</button>
-            <button class="btn btn-secondary" data-act="goCare" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta2)}</button>
           </div>
         </div>
       </section>
@@ -770,22 +761,9 @@ class App {
         </div>
       </section>
 
-      <section style="padding: clamp(44px, 6vw, 72px) var(--pg); border-bottom: 1px solid var(--color-divider)">
-        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 32px; margin-bottom: 40px">
-          <div style="display: flex; align-items: baseline; gap: 18px">
-            <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">III</span>
-            <h2 style="font-size: 34px; font-weight: 400">${esc(site.featured)}</h2>
-          </div>
-          <button class="btn btn-ghost" data-act="goKokedama" style="gap: 8px"><span>${esc(site.featuredLink)}</span>${ICON.chevronLeft}</button>
-        </div>
-        <div style="display: grid; grid-template-columns: var(--cards, repeat(4, minmax(0, 1fr))); gap: var(--cards-gap, 44px 30px)">
-          ${featured.map((p) => this.productCard(p, { featured: true })).join('')}
-        </div>
-      </section>
-
       <section style="padding: clamp(44px, 6vw, 68px) var(--pg) 30px; border-top: 1px solid var(--color-divider)">
         <div style="display: flex; align-items: baseline; gap: 18px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">IV</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">III</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">קטלוג</span>
         </div>
         <h2 style="font-size: clamp(32px, 3.4vw, 44px); font-weight: 400; margin: 14px 0 18px">${esc(catTitle)}</h2>
@@ -800,20 +778,6 @@ class App {
       <section style="padding: 38px var(--pg) 80px">
         <div style="display: grid; grid-template-columns: var(--cards, repeat(auto-fill, minmax(min(230px, 100%), 1fr))); gap: var(--cards-gap, 48px 30px); transition: opacity 0.22s ease; opacity: ${s.fading ? 0 : 1}">
           ${catItems.map((p) => this.productCard(p)).join('')}
-        </div>
-      </section>
-
-      <section style="padding: clamp(44px, 6vw, 68px) var(--pg); border-top: 1px solid var(--color-divider)">
-        <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 34px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">V</span>
-          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">טיפוח</span>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 44px">
-          ${[['א׳', site.care1H, site.care1B], ['ב׳', site.care2H, site.care2B], ['ג׳', site.care3H, site.care3B]].map(([num, h, b]) => `
-          <div style="display: grid; grid-template-columns: 30px 1fr; gap: 16px; align-items: start">
-            <span style="font-family: var(--font-heading); font-size: 20px; color: var(--color-accent)">${num}</span>
-            <div><h4 style="font-size: 19px; font-weight: 400; margin-bottom: 8px">${esc(h)}</h4><p style="margin: 0; font-size: 14px; line-height: 1.85; color: var(--color-neutral-700)">${esc(b)}</p></div>
-          </div>`).join('')}
         </div>
       </section>
     </div>`;
@@ -930,23 +894,6 @@ class App {
             <button class="btn btn-secondary" data-act="goKokedama" style="min-height: 46px">לקטלוג</button>
           </div>
           <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">משלוח חינם בהזמנה מעל 300 ₪ · שניים עד ארבעה ימי עסקים</p>
-        </div>
-      </section>
-    </div>`;
-  }
-
-  // ── CARE ─────────────────────────────────────────────────────────────
-  renderCare() {
-    return `
-    <div data-screen-label="טיפוח">
-      <section style="padding: clamp(36px, 5vw, 60px) var(--pg) 84px; max-width: 900px">
-        <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך</span>
-        <h1 style="font-size: clamp(34px, 3.6vw, 48px); font-weight: 400; margin: 14px 0 28px">איך מטפחים קוקודמה</h1>
-        <div style="columns: 2 300px; column-gap: 48px; font-size: 15.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">
-          <p style="margin: 0 0 18px">קוקודמה היא צמח ששורשיו כרוכים בכרית קוקוס וטחב במקום עציץ. הכרית מחזיקה לחות ומשחררת אותה בהדרגה, ולכן הטיפול בה שונה מטיפול בצמח בעציץ: לא משקים מלמעלה, אלא מטבילים.</p>
-          <p style="margin: 0 0 18px">אחת לשבוע ממלאים קערה במים בטמפרטורת החדר, מניחים את הכרית בתוכה ומחכים עשר דקות עד שהיא סופגת. מוציאים, נותנים לעודפים לטפטף בכיור חמש דקות, ומחזירים למקום. בקיץ אפשר להוסיף ריסוס קל על העלים בין הטבילות.</p>
-          <p style="margin: 0 0 18px">מקום נכון הוא חלון פונה מזרח, או שני מטר ממקור אור חזק. שמש ישירה שורפת את העלים בתוך יומיים. מרפסת מוצלת בקיץ מתאימה, אבל לא בחודשי החמסין.</p>
-          <p style="margin: 0 0 18px">פעם בחודש בעונת הגדילה מוסיפים שתי טיפות דשן נוזלי למים שבקערה. בחורף מפסיקים לדשן ומורידים לטבילה אחת לעשרה ימים.</p>
         </div>
       </section>
     </div>`;
