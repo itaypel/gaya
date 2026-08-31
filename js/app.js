@@ -14,11 +14,46 @@ function nl2br(str) { return esc(str).replace(/\n/g, '<br>'); }
 // the admin screen must not ship in the same public bundle as the storefront.
 const ADMIN_GATE_PASSCODE = 'oren5422';
 
-// Home-delivery service area: coastal/central strip from Ashkelon to Netanya.
+// Home-delivery service area: coastal/central strip from Ashkelon to Netanya,
+// including the Ramla/Lod area and the moshavim/kibbutzim of the regional
+// councils that fall between the two — nothing south of Ashkelon or north of
+// Netanya (e.g. Hof Ashkelon and Emek Hefer settlements are excluded).
 const DELIVERY_CITIES = [
+  // ערים
   'אשקלון', 'אשדוד', 'יבנה', 'נס ציונה', 'רחובות', 'ראשון לציון', 'חולון', 'בת ים',
   'תל אביב-יפו', 'גבעתיים', 'רמת גן', 'בני ברק', 'פתח תקווה', 'אור יהודה', 'קריית אונו',
-  'הרצליה', 'רמת השרון', 'כפר סבא', 'רעננה', 'הוד השרון', 'נתניה'
+  'הרצליה', 'רמת השרון', 'כפר סבא', 'רעננה', 'הוד השרון', 'נתניה', 'רמלה', 'לוד',
+  // מועצה אזורית באר טוביה
+  'חצור אשדוד', 'אביגדור', 'אורות', 'אמונים', 'באר טוביה', 'ביצרון', 'בית עזרא', 'גבעתי',
+  'חצב', 'ינון', 'כפר אחים', 'כפר ורבורג', 'נווה מבטח', 'ניר בנים', 'עזריקם', 'ערוגות',
+  'שדה עוזיהו', 'שתולים', 'תימורים', 'תלמי יחיאל', 'אחווה', 'עזר', 'כנות',
+  // מועצה אזורית חבל יבנה
+  'בית גמליאל', 'בן זכאי', 'בני דרום', 'גבעת ושינגטון', 'קבוצת יבנה', 'כרם ביבנה',
+  'ניר גלים', 'צופיה',
+  // מועצה אזורית גן רווה
+  'אירוס', 'בית חנן', 'בית עובד', 'גאליה', 'גן שורק', 'כפר הנגיד', 'מחנה הילה', 'נטעים',
+  'עיינות', 'פלמחים',
+  // מועצה אזורית נחל שורק
+  'בית חלקיה', 'בני ראם', 'גני טל', 'חפץ חיים', 'יד בנימין', 'יסודות', 'נצר חזני',
+  // מועצה אזורית גזר
+  'גזר', 'חולדה', 'נען', 'שעלבים', 'נצר סרני', 'בית עוזיאל', 'גני יוחנן', 'יד רמב"ם',
+  'יציץ', 'ישרש', 'כפר ביל"ו', 'כפר בן נון', 'כפר שמואל', 'מצליח', 'משמר איילון',
+  'סתריה', 'עזריה', 'פדיה', 'פתחיה', 'רמות מאיר', 'בית חשמונאי', 'גני הדר', 'כרמי יוסף',
+  'משמר דוד', 'נוף איילון',
+  // מועצה אזורית שדות דן (לשעבר עמק לוד)
+  'אחיעזר', 'גנות', 'זיתן', 'חמ"ד', 'יגל', 'כפר חב"ד', 'משמר השבעה', 'ניר צבי', 'צפריה',
+  // מועצה אזורית דרום השרון
+  'אייל', 'גבעת השלושה', 'חורשים', 'נחשונים', 'ניר אליהו', 'עינת', 'רמת הכובש', 'אלישמע',
+  'גבעת ח"ן', 'גן חיים', 'גני עם', 'גת רימון', 'חגור', 'ירחיב', 'ירקונה', 'כפר מל"ל',
+  'כפר מעש', 'כפר סירקין', 'מגשימים', 'נווה ימין', 'נווה ירק', 'עדנים', 'צופית',
+  'צור נתן', 'רמות השבים', 'שדה ורבורג', 'שדי חמד', 'מתן', 'נירית', 'צור יצחק', 'בית ברל',
+  // מועצה אזורית לב השרון
+  'בני דרור', 'גאולים', 'גנות הדר', 'חרות', 'ינוב', 'יעף', 'כפר הס', 'כפר יעבץ',
+  'משמרת', 'נורדיה', 'ניצני עוז', 'עזריאל', 'עין ורד', 'עין שריד', 'פורת', 'צור משה',
+  'שער אפרים', 'תנובות',
+  // מועצה אזורית חוף השרון, ומועצה מקומית כפר שמריהו
+  'גליל ים', 'געש', 'יקום', 'שפיים', 'תל יצחק', 'אודים', 'בית יהושע', 'בני ציון',
+  'בצרה', 'כפר נטר', 'רשפון', 'ארסוף', 'חרוצים', 'כפר שמריהו'
 ];
 
 class App {
@@ -521,7 +556,7 @@ class App {
     <header style="display: flex; align-items: center; gap: 20px; padding: ${s.scrolled ? '6px' : '10px'} var(--pg); border-bottom: 1px solid var(--color-divider); position: sticky; top: 0; background: var(--color-bg); z-index: 20; transition: padding 0.28s ease, box-shadow 0.28s ease; box-shadow: ${s.scrolled ? '0 1px 0 rgba(35,42,34,0.10), var(--shadow-sm)' : 'none'}">
       <a href="#" data-act="goHome" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; flex: 0 0 auto">
         <img src="${LOGO_IMG}" alt="GAYA" style="height: calc(var(--logo-h, 34px) * ${logoScale}); width: auto; display: block; transition: height 0.28s ease">
-        <span style="font-family: var(--font-heading); font-size: 20px; font-weight: 400; letter-spacing: 0.12em; overflow: hidden; white-space: nowrap; flex: 0 0 auto; transition: max-width 0.3s ease, opacity 0.24s ease; max-width: ${s.scrolled ? '0px' : '120px'}; opacity: ${s.scrolled ? 0 : 1}">GAYA</span>
+        <span style="font-family: var(--font-heading); font-size: 20px; font-weight: 400; letter-spacing: 0.12em; overflow: hidden; white-space: nowrap; flex: 0 0 auto; transition: max-width 0.3s ease, opacity 0.24s ease; max-width: ${s.scrolled ? '0px' : '120px'}; opacity: ${s.scrolled ? 0 : 1}">גאיה</span>
       </a>
       <nav style="display: var(--nav-display, flex); gap: 28px; font-size: 15px; margin-inline-start: auto; margin-inline-end: 8px">
         <a href="#" data-act="goHome">דף הבית</a>
@@ -542,7 +577,7 @@ class App {
     <div data-act="closeNav" aria-hidden="true" style="position: fixed; inset: 0; z-index: 64; background: rgba(24,30,24,0.34); transition: opacity 0.3s ease; display: var(--nav-drawer-display, none); opacity: ${s.navOpen ? 1 : 0}; pointer-events: ${s.navOpen ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="תפריט" style="position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 66; width: min(300px, 84vw); background: var(--color-neutral-100); border-inline-start: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: var(--nav-drawer-display, none); transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${s.navOpen ? '0s' : '0.32s'}; transform: ${s.navOpen ? 'translateX(0)' : 'translateX(-105%)'}; visibility: ${s.navOpen ? 'visible' : 'hidden'}">
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 21px 26px; border-bottom: 1px solid var(--color-divider)">
-        <span style="font-family: var(--font-heading); font-size: 19px; font-weight: 400; letter-spacing: 0.12em">GAYA</span>
+        <span style="font-family: var(--font-heading); font-size: 19px; font-weight: 400; letter-spacing: 0.12em">גאיה</span>
         <button class="btn btn-secondary btn-icon" data-act="closeNav" aria-label="סגירת התפריט">${ICON.close16}</button>
       </div>
       <nav style="display: flex; flex-direction: column; padding: 10px; gap: 2px; font-size: 16px">
@@ -789,19 +824,15 @@ class App {
   // ── CATEGORY ─────────────────────────────────────────────────────────
   renderCategory() {
     const s = this.state;
-    const site = s.site;
     const kok = s.cat === 'kokedama';
     const all = this.catalog();
     const catItems = all.filter((p) => (kok ? p.cat !== 'hydro' : p.cat === 'hydro'));
-    const catTitle = kok ? site.kokTitle : site.hydTitle;
-    const catBlurb = kok ? site.kokBlurb : site.hydBlurb;
     return `
     <div data-screen-label="קטגוריה">
       <section style="padding: clamp(36px, 5vw, 56px) var(--pg) 30px">
         <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">קטלוג</span>
-        <h1 style="font-size: clamp(34px, 3.6vw, 48px); font-weight: 400; margin: 14px 0 20px">${esc(catTitle)}</h1>
-        <p style="font-size: 16px; line-height: 1.85; text-align: justify; max-width: 62ch; margin: 0; color: var(--color-neutral-800)">${esc(catBlurb)}</p>
-        <div style="display: flex; gap: 10px; margin-top: 30px; padding-bottom: 26px; border-bottom: 1px solid var(--color-divider)">
+        <h1 style="font-size: clamp(34px, 3.6vw, 48px); font-weight: 400; margin: 14px 0 20px">${esc(kok ? 'קוקודמות' : 'הידרופוני')}</h1>
+        <div style="display: flex; gap: 10px; margin-top: 10px; padding-bottom: 26px; border-bottom: 1px solid var(--color-divider)">
           <button class="btn ${kok ? 'btn-primary' : 'btn-secondary'}" data-act="goKokedama">קוקודמות</button>
           <button class="btn ${kok ? 'btn-secondary' : 'btn-primary'}" data-act="goHydro">הידרופוני</button>
           <span style="margin-inline-start: auto; align-self: center; font-size: 13px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${catItems.length} ${catItems.length === 1 ? 'פריט' : 'פריטים'}</span>
@@ -896,7 +927,7 @@ class App {
             ${stock > 0 ? `<button class="btn btn-primary" data-act="addCurrent" style="flex: 1; min-height: 46px">הוספה לעגלה</button>` : `<button class="btn btn-secondary" disabled style="flex: 1; min-height: 46px">אזל מהמלאי</button>`}
             <button class="btn btn-secondary" data-act="goKokedama" style="min-height: 46px">לקטלוג</button>
           </div>
-          <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">משלוח חינם בהזמנה מעל 300 ₪ · שניים עד ארבעה ימי עסקים</p>
+          <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">משלוח חינם בהזמנה מעל 300 ₪ · עד חמישה ימי עסקים</p>
         </div>
       </section>
     </div>`;
@@ -916,7 +947,7 @@ class App {
     });
     const methodNote = pickup
       ? 'הסטודיו ברחובות, פתוח ראשון עד חמישי בין עשר לשש. נשלח הודעה כשההזמנה מוכנה לאיסוף.'
-      : 'שליח עד הבית בתוך שניים עד ארבעה ימי עסקים, באריזת קרטון עם מגן שורשים. חינם מעל 300 ₪. משלוח זמין לערים באזור החלוקה בלבד — מאשקלון בדרום ועד נתניה בצפון.';
+      : 'שליח עד הבית, עד חמישה ימי עסקים, באריזת קרטון עם מגן שורשים. חינם מעל 300 ₪. משלוח זמין לערים באזור החלוקה בלבד — מאשקלון בדרום ועד נתניה בצפון.';
     const payNote = s.pay === 'apple' ? 'האישור נעשה בטלפון או בשעון — פרטי הכרטיס לא נשמרים אצלנו.'
       : (s.pay === 'google' ? 'האישור נעשה בחשבון Google שלך, בלי להזין פרטי כרטיס בדף.' : 'הכרטיס נסלק דרך שרת מאובטח. אנחנו לא שומרים את המספר.');
     const payCta = s.pay === 'apple' ? 'תשלום ב־Apple Pay' : (s.pay === 'google' ? 'תשלום ב־Google Pay' : 'אישור ותשלום');
@@ -942,7 +973,7 @@ class App {
             <div class="field"><label for="f-phone">טלפון</label><input class="input" id="f-phone" type="tel" placeholder="05X-0000000"></div>
             <div class="field" style="grid-column: 1 / -1"><label for="f-email">דואר אלקטרוני</label><input class="input" id="f-email" type="email" placeholder="name@example.com"></div>
             <div class="field" style="grid-column: 1 / -1"><label for="f-addr">כתובת למשלוח</label><input class="input" id="f-addr" placeholder="רחוב, מספר, דירה"></div>
-            <div class="field"><label for="f-city">עיר</label><select class="input" id="f-city"><option value="" selected disabled>בחירת עיר</option>${DELIVERY_CITIES.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
+            <div class="field"><label for="f-city">עיר</label><input class="input" id="f-city" list="f-city-list" placeholder="הקלידו לבחירת עיר" autocomplete="off"><datalist id="f-city-list">${DELIVERY_CITIES.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
             <div class="field"><label for="f-zip">מיקוד</label><input class="input" id="f-zip" placeholder="0000000"></div>
             <div class="field" style="grid-column: 1 / -1"><label for="f-note">הערה לשליח או ברכה לצירוף</label><textarea class="input" id="f-note" placeholder="אופציונלי"></textarea></div>
           </div>
