@@ -65,7 +65,7 @@ class App {
       screen: 'home', cat: 'kokedama', prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
       admTab: 'products', site: Object.assign({}, SITE),
-      ordFilter: 'all', ordStates: {}, ordOpenRef: null,
+      ordFilter: 'all', ordOpenRef: null, ordActionError: '',
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
@@ -190,11 +190,23 @@ class App {
       .filter((p) => !removed[p.id])
       .map((p) => (edits[p.id] ? Object.assign({}, p, edits[p.id]) : p));
   }
-  ordStateOf(ref) { return this.state.ordStates[ref] || (this.state.orders.find((o) => o.ref === ref) || {}).state || 'new'; }
-  ordAdvanceRef(ref) {
-    const next = ORD_STATE[this.ordStateOf(ref)].next;
-    if (!next) return;
-    this.setState((st) => ({ ordStates: Object.assign({}, st.ordStates, { [ref]: next }) }));
+  ordStateOf(ref) { return (this.state.orders.find((o) => o.ref === ref) || {}).state || 'new'; }
+  async ordAdvanceRef(ref) {
+    const order = this.state.orders.find((o) => o.ref === ref);
+    const next = order && ORD_STATE[order.state] ? ORD_STATE[order.state].next : null;
+    if (!order || !next) return;
+    this.setState({ ordActionError: '' });
+    try {
+      const res = await this.withTimeout(fetch('/api/update-order-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+        body: JSON.stringify({ ref, state: next }),
+      }), 15000, 'תם הזמן הקצוב');
+      if (!res.ok) throw new Error('שגיאה בעדכון מצב ההזמנה (' + res.status + ')');
+      this.setState((st) => ({ orders: st.orders.map((o) => o.ref === ref ? Object.assign({}, o, { state: next }) : o) }));
+    } catch (err) {
+      this.setState({ ordActionError: err.message || 'עדכון מצב ההזמנה נכשל' });
+    }
   }
   ordSubtotalOf(o) { return Number.isFinite(o.subtotal) ? o.subtotal : o.items.reduce((t, it) => t + it.price * it.qty, 0); }
   ordShipOf(o) { if (Number.isFinite(o.shipping)) return o.shipping; const subtotal = this.ordSubtotalOf(o); return o.method === 'איסוף' || subtotal >= 300 ? 0 : 39; }
@@ -1367,6 +1379,7 @@ class App {
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">נשלחו</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${shaped.filter((r) => r.state === 'sent').length}</span></div>
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">מחזור</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${this.fmt(shaped.reduce((t, r) => t + r.total, 0))}</span></div>
       </div>
+      ${s.ordActionError ? `<p style="margin: 14px 0 0; font-size: 13px; color: var(--color-accent-700)">${esc(s.ordActionError)}</p>` : ''}
       <div style="display: flex; gap: 10px; flex-wrap: wrap; padding: 24px 0">
         <button class="btn ${s.ordFilter === 'all' ? 'btn-primary' : 'btn-secondary'}" data-act="ordShowAll">הכל</button>
         <button class="btn ${s.ordFilter === 'new' ? 'btn-primary' : 'btn-secondary'}" data-act="ordShowNew">חדשות</button>
@@ -1399,7 +1412,7 @@ class App {
         </tbody>
       </table>
       </div>`}
-      <p style="margin: 22px 0 0; font-size: 13px; line-height: 1.8; color: var(--color-neutral-600)">מצב ההזמנה (חדשה/בהכנה/נשלחה) נשמר בזיכרון הדפדפן בלבד וחוזר ל״חדשה״ ברענון העמוד — פרטי ההזמנה עצמם נשמרים באופן קבוע.</p>
+      <p style="margin: 22px 0 0; font-size: 13px; line-height: 1.8; color: var(--color-neutral-600)">פרטי ההזמנות ומצבן (חדשה/בהכנה/נשלחה) נשמרים באופן קבוע במאגר פרטי, ולא רק בדפדפן.</p>
     </section>`;
   }
 

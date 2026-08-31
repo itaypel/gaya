@@ -1,20 +1,18 @@
-const { put, BlobPreconditionFailedError } = require('@vercel/blob');
+const { get, put, BlobPreconditionFailedError } = require('@vercel/blob');
 
-// Orders contain customer PII (name, phone, address). The project's Blob
-// store is public-access-only (fixed at store creation), so instead of a
-// predictable path like catalog.json, this uses a long random path segment
-// as a capability secret — never shipped to client-side code — so the
-// blob isn't discoverable or guessable the way the public catalog is.
-const ORDERS_PATH = 'data/orders-e333f06b01565d1d2e70d6d1e675e018.json';
-const ORDERS_URL = 'https://n5mm0fqiav7j7uht.public.blob.vercel-storage.com/' + ORDERS_PATH;
+// Orders contain customer PII, so they live in their own private Blob store
+// (access: 'private' — requires an authenticated request, unlike the public
+// store used for the product catalog/images). Reads and writes below use
+// this store's dedicated BLOB_READ_WRITE_TOKEN automatically.
+const ORDERS_PATH = 'orders.json';
 const MAX_ORDERS = 500;
 
 async function readOrders() {
-  const res = await fetch(ORDERS_URL, { cache: 'no-store' });
-  if (res.status === 404) return { orders: [], etag: null };
-  if (!res.ok) throw new Error('orders fetch failed: ' + res.status);
-  const orders = await res.json();
-  return { orders: Array.isArray(orders) ? orders : [], etag: res.headers.get('etag') || null };
+  const result = await get(ORDERS_PATH, { access: 'private', useCache: false });
+  if (!result) return { orders: [], etag: null };
+  const text = await new Response(result.stream).text();
+  const orders = JSON.parse(text);
+  return { orders: Array.isArray(orders) ? orders : [], etag: result.blob ? result.blob.etag : null };
 }
 
 async function appendOrder(order) {
@@ -22,7 +20,7 @@ async function appendOrder(order) {
     const { orders, etag } = await readOrders();
     const next = [order, ...orders].slice(0, MAX_ORDERS);
     const putOptions = {
-      access: 'public',
+      access: 'private',
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: 'application/json',

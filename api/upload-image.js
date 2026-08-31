@@ -70,6 +70,7 @@ module.exports = async (req, res) => {
       allowOverwrite: true,
       contentType: 'image/jpeg',
       cacheControlMaxAge: 300,
+      token: process.env.PRODUCTS_BLOB_TOKEN,
     });
     res.status(200).json({ url: blob.url });
   } catch (err) {

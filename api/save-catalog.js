@@ -59,6 +59,7 @@ module.exports = async (req, res) => {
     allowOverwrite: true,
     contentType: 'application/json',
     cacheControlMaxAge: 60,
+    token: process.env.PRODUCTS_BLOB_TOKEN,
   };
   if (req.headers['x-catalog-etag']) putOptions.ifMatch = req.headers['x-catalog-etag'];
 
