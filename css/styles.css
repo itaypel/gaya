@@ -170,4 +170,5 @@ h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
 @media (max-width: 560px) {
   :root { --pg: 16px; --logo-h: 34px; }
   :root { --cards: repeat(2, minmax(0, 1fr)); --cards-gap: 26px 12px; --rel: repeat(2, minmax(0, 1fr)); }
+  :root { --hero-min-h: auto; --hero-gap: 22px; --hero-pad: 28px var(--pg) 36px; }
 }
