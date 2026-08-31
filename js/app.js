@@ -14,6 +14,13 @@ function nl2br(str) { return esc(str).replace(/\n/g, '<br>'); }
 // the admin screen must not ship in the same public bundle as the storefront.
 const ADMIN_GATE_PASSCODE = 'oren5422';
 
+// Home-delivery service area: coastal/central strip from Ashkelon to Netanya.
+const DELIVERY_CITIES = [
+  'אשקלון', 'אשדוד', 'יבנה', 'נס ציונה', 'רחובות', 'ראשון לציון', 'חולון', 'בת ים',
+  'תל אביב-יפו', 'גבעתיים', 'רמת גן', 'בני ברק', 'פתח תקווה', 'אור יהודה', 'קריית אונו',
+  'הרצליה', 'רמת השרון', 'כפר סבא', 'רעננה', 'הוד השרון', 'נתניה'
+];
+
 class App {
   constructor(root) {
     this.root = root;
@@ -909,7 +916,7 @@ class App {
     });
     const methodNote = pickup
       ? 'הסטודיו ברחובות, פתוח ראשון עד חמישי בין עשר לשש. נשלח הודעה כשההזמנה מוכנה לאיסוף.'
-      : 'שליח עד הבית בתוך שניים עד ארבעה ימי עסקים, באריזת קרטון עם מגן שורשים. חינם מעל 300 ₪.';
+      : 'שליח עד הבית בתוך שניים עד ארבעה ימי עסקים, באריזת קרטון עם מגן שורשים. חינם מעל 300 ₪. משלוח זמין לערים באזור החלוקה בלבד — מאשקלון בדרום ועד נתניה בצפון.';
     const payNote = s.pay === 'apple' ? 'האישור נעשה בטלפון או בשעון — פרטי הכרטיס לא נשמרים אצלנו.'
       : (s.pay === 'google' ? 'האישור נעשה בחשבון Google שלך, בלי להזין פרטי כרטיס בדף.' : 'הכרטיס נסלק דרך שרת מאובטח. אנחנו לא שומרים את המספר.');
     const payCta = s.pay === 'apple' ? 'תשלום ב־Apple Pay' : (s.pay === 'google' ? 'תשלום ב־Google Pay' : 'אישור ותשלום');
@@ -935,7 +942,7 @@ class App {
             <div class="field"><label for="f-phone">טלפון</label><input class="input" id="f-phone" type="tel" placeholder="05X-0000000"></div>
             <div class="field" style="grid-column: 1 / -1"><label for="f-email">דואר אלקטרוני</label><input class="input" id="f-email" type="email" placeholder="name@example.com"></div>
             <div class="field" style="grid-column: 1 / -1"><label for="f-addr">כתובת למשלוח</label><input class="input" id="f-addr" placeholder="רחוב, מספר, דירה"></div>
-            <div class="field"><label for="f-city">עיר</label><input class="input" id="f-city" placeholder="רחובות"></div>
+            <div class="field"><label for="f-city">עיר</label><select class="input" id="f-city"><option value="" selected disabled>בחירת עיר</option>${DELIVERY_CITIES.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
             <div class="field"><label for="f-zip">מיקוד</label><input class="input" id="f-zip" placeholder="0000000"></div>
             <div class="field" style="grid-column: 1 / -1"><label for="f-note">הערה לשליח או ברכה לצירוף</label><textarea class="input" id="f-note" placeholder="אופציונלי"></textarea></div>
           </div>
@@ -1010,7 +1017,7 @@ class App {
           </div>
           <div>
             <h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">פנייה בנושא נגישות</h2>
-            <p style="margin: 0">רכז הנגישות: [שם] · טלפון: 050-7673034 · דואר אלקטרוני: giljabes22@gmail.com. נשיב לכל פנייה בתוך שני ימי עסקים.</p>
+            <p style="margin: 0">רכז הנגישות: גיל · טלפון: 050-7673034 · דואר אלקטרוני: giljabes22@gmail.com. נשיב לכל פנייה בתוך שני ימי עסקים.</p>
           </div>
           <p style="margin: 0; font-size: 13.5px; color: var(--color-neutral-600)">ההצהרה עודכנה בתאריך [להשלים].</p>
         </div>
@@ -1051,7 +1058,7 @@ class App {
             <h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">מדיניות משלוחים</h2>
             <ul style="margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 10px">
               <li>ניתן לבצע איסוף עצמי, בתיאום מראש, מ-GAYA — ללא תשלום.</li>
-              <li>אזור החלוקה של המשלוחים הוא מהרצליה ועד אשקלון.</li>
+              <li>אזור החלוקה של המשלוחים הוא מאשקלון בדרום ועד נתניה בצפון.</li>
               <li>זמני אספקה: באיסוף עצמי — עד 48 שעות. במשלוח — עד 5 ימי עסקים.</li>
               <li>במקרה שמוצר או צבע חסרים, והלקוח מעודכן בכך על ידי הסטודיו ובוחר שלא להחליף לצמח או לצבע אחר — המשלוח יישלח כשהחוסרים יגיעו, בתוספת דמי משלוח בהתאם לעיר המגורים, בטווח שבין 28 ₪ ל־100 ₪.</li>
               <li>עבור "מוצרים כבדים" — עצים, שקי תערובת, שקי טוף ושקי דישון — עלות ההובלה נקבעת בהתאם למשקל המוצרים ולכמות השקים.</li>
