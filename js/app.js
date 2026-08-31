@@ -69,7 +69,8 @@ class App {
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
-      orderSubmitting: false, orderError: '', lastOrderId: ''
+      orderSubmitting: false, orderError: '', lastOrderId: '',
+      orders: [], ordersStatus: 'idle', ordersError: ''
     };
     this._fadeT = null;
     root.addEventListener('click', (e) => this.handleClick(e));
@@ -189,21 +190,27 @@ class App {
       .filter((p) => !removed[p.id])
       .map((p) => (edits[p.id] ? Object.assign({}, p, edits[p.id]) : p));
   }
-  ordCatalog() { return CATALOG.concat(this.state.extra); }
-  ordStateOf(ref) { return this.state.ordStates[ref] || (ORDERS.find((o) => o.ref === ref) || {}).state || 'new'; }
+  ordStateOf(ref) { return this.state.ordStates[ref] || (this.state.orders.find((o) => o.ref === ref) || {}).state || 'new'; }
   ordAdvanceRef(ref) {
     const next = ORD_STATE[this.ordStateOf(ref)].next;
     if (!next) return;
     this.setState((st) => ({ ordStates: Object.assign({}, st.ordStates, { [ref]: next }) }));
   }
-  ordSubtotalOf(o) {
-    return o.items.reduce((t, [id, q]) => {
-      const p = this.ordCatalog().find((x) => x.id === id);
-      return t + (p ? p.price * q : 0);
-    }, 0);
+  ordSubtotalOf(o) { return Number.isFinite(o.subtotal) ? o.subtotal : o.items.reduce((t, it) => t + it.price * it.qty, 0); }
+  ordShipOf(o) { if (Number.isFinite(o.shipping)) return o.shipping; const subtotal = this.ordSubtotalOf(o); return o.method === 'איסוף' || subtotal >= 300 ? 0 : 39; }
+  ordTotalOf(o) { return Number.isFinite(o.total) ? o.total : this.ordSubtotalOf(o) + this.ordShipOf(o); }
+  async loadOrders() {
+    if (this.state.ordersStatus === 'loading') return;
+    this.setState({ ordersStatus: 'loading', ordersError: '' });
+    try {
+      const res = await this.withTimeout(fetch('/api/list-orders', { headers: { 'X-Admin-Passcode': ADMIN_GATE_PASSCODE }, cache: 'no-store' }), 15000, 'תם הזמן הקצוב');
+      if (!res.ok) throw new Error('שגיאה בטעינת ההזמנות (' + res.status + ')');
+      const data = await res.json();
+      this.setState({ orders: Array.isArray(data.orders) ? data.orders : [], ordersStatus: 'done' });
+    } catch (err) {
+      this.setState({ ordersStatus: 'error', ordersError: err.message || 'שגיאה בטעינת ההזמנות' });
+    }
   }
-  ordShipOf(o) { const subtotal = this.ordSubtotalOf(o); return o.method === 'איסוף' || subtotal >= 300 ? 0 : 39; }
-  ordTotalOf(o) { return this.ordSubtotalOf(o) + this.ordShipOf(o); }
 
   setSite(k, v) { this.setState((st) => ({ site: Object.assign({}, st.site, { [k]: v }) })); }
   resetSite() { this.setState({ site: Object.assign({}, SITE) }); }
@@ -354,7 +361,7 @@ class App {
       case 'toggleLinks': this.setState((st) => ({ links: !st.links })); break;
       case 'resetA11y': this.setState({ font: 100, contrast: false, links: false }); break;
       case 'admGoProducts': this.setState({ admTab: 'products' }); break;
-      case 'admGoOrders': this.setState({ admTab: 'orders' }); break;
+      case 'admGoOrders': this.setState({ admTab: 'orders' }); this.loadOrders(); break;
       case 'admGoSite': this.setState({ admTab: 'site' }); break;
       case 'admShowAll': this.setState({ admFilter: 'all' }); break;
       case 'admShowKok': this.setState({ admFilter: 'kok' }); break;
@@ -1336,17 +1343,26 @@ class App {
 
   renderAdminOrders() {
     const s = this.state;
-    const shaped = ORDERS.map((o) => {
+    const shaped = s.orders.map((o) => {
       const st = this.ordStateOf(o.ref);
       const meta = ORD_STATE[st];
-      const qty = o.items.reduce((t, [, q]) => t + q, 0);
+      const qty = o.items.reduce((t, it) => t + it.qty, 0);
       return { o, state: st, meta, qty, total: this.ordTotalOf(o) };
     });
     const rows = shaped.filter((r) => s.ordFilter === 'all' || r.state === s.ordFilter);
+    if (s.ordersStatus === 'loading' || s.ordersStatus === 'idle') {
+      return `<section style="padding: 40px var(--pg) 80px"><p style="margin: 0; color: var(--color-neutral-600)">טוען הזמנות…</p></section>`;
+    }
+    if (s.ordersStatus === 'error') {
+      return `<section style="padding: 40px var(--pg) 80px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start">
+        <p style="margin: 0; color: var(--color-accent-700)">${esc(s.ordersError)}</p>
+        <button class="btn btn-secondary" data-act="admGoOrders">ניסיון נוסף</button>
+      </section>`;
+    }
     return `
     <section style="padding: 0 var(--pg) 80px">
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 14px; padding-bottom: 26px; border-bottom: 1px solid var(--color-divider)">
-        <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">הזמנות החודש</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${ORDERS.length}</span></div>
+        <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">סה״כ הזמנות</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${s.orders.length}</span></div>
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">ממתינות לטיפול</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums; color: var(--color-accent-700)">${shaped.filter((r) => r.state !== 'sent').length}</span></div>
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">נשלחו</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${shaped.filter((r) => r.state === 'sent').length}</span></div>
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">מחזור</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${this.fmt(shaped.reduce((t, r) => t + r.total, 0))}</span></div>
@@ -1356,7 +1372,9 @@ class App {
         <button class="btn ${s.ordFilter === 'new' ? 'btn-primary' : 'btn-secondary'}" data-act="ordShowNew">חדשות</button>
         <button class="btn ${s.ordFilter === 'prep' ? 'btn-primary' : 'btn-secondary'}" data-act="ordShowPrep">בהכנה</button>
         <button class="btn ${s.ordFilter === 'sent' ? 'btn-primary' : 'btn-secondary'}" data-act="ordShowSent">נשלחו</button>
+        <button class="btn btn-ghost" data-act="admGoOrders" style="margin-inline-start: auto">רענון</button>
       </div>
+      ${rows.length === 0 ? `<p style="margin: 20px 0; color: var(--color-neutral-600)">${s.orders.length === 0 ? 'עדיין לא התקבלו הזמנות מהאתר.' : 'אין הזמנות בסינון הזה.'}</p>` : `
       <div style="overflow-x: auto; -webkit-overflow-scrolling: touch">
       <table class="table" style="min-width: 680px">
         <thead><tr>
@@ -1366,22 +1384,22 @@ class App {
         <tbody>
           ${rows.map((r) => `
           <tr>
-            <td style="font-variant-numeric: tabular-nums">${r.o.ref}</td>
-            <td style="font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${r.o.date}</td>
+            <td style="font-variant-numeric: tabular-nums">${esc(r.o.ref)}</td>
+            <td style="font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${esc(r.o.date)}</td>
             <td>${esc(r.o.customer)}</td>
             <td style="color: var(--color-neutral-700)">${r.qty}${r.qty === 1 ? ' פריט' : ' פריטים'}</td>
             <td style="font-variant-numeric: tabular-nums">${this.fmt(r.total)}</td>
-            <td style="color: var(--color-neutral-700)">${r.o.method}</td>
+            <td style="color: var(--color-neutral-700)">${esc(r.o.method)}</td>
             <td><span class="tag ${r.meta.tag}">${r.meta.label}</span></td>
             <td><span style="display: flex; gap: 6px">
-              ${r.meta.next ? `<button class="btn btn-secondary" data-act="ordAdvance" data-id="${r.o.ref}" style="padding: 6px 12px; font-size: 13px; min-height: 0">${r.meta.nextLabel}</button>` : ''}
-              <button class="btn btn-secondary btn-icon" data-act="ordOpen" data-id="${r.o.ref}" aria-label="פרטי הזמנה ${r.o.ref}">${ICON.eye}</button>
+              ${r.meta.next ? `<button class="btn btn-secondary" data-act="ordAdvance" data-id="${esc(r.o.ref)}" style="padding: 6px 12px; font-size: 13px; min-height: 0">${r.meta.nextLabel}</button>` : ''}
+              <button class="btn btn-secondary btn-icon" data-act="ordOpen" data-id="${esc(r.o.ref)}" aria-label="פרטי הזמנה ${esc(r.o.ref)}">${ICON.eye}</button>
             </span></td>
           </tr>`).join('')}
         </tbody>
       </table>
-      </div>
-      <p style="margin: 22px 0 0; font-size: 13px; line-height: 1.8; color: var(--color-neutral-600)">היומן מוצג לצורך הדמו עם הזמנות לדוגמה. חיבור להזמנות אמיתיות דורש שרת וסליקה.</p>
+      </div>`}
+      <p style="margin: 22px 0 0; font-size: 13px; line-height: 1.8; color: var(--color-neutral-600)">מצב ההזמנה (חדשה/בהכנה/נשלחה) נשמר בזיכרון הדפדפן בלבד וחוזר ל״חדשה״ ברענון העמוד — פרטי ההזמנה עצמם נשמרים באופן קבוע.</p>
     </section>`;
   }
 
@@ -1474,13 +1492,10 @@ class App {
   // ── slide-over: order detail ────────────────────────────────────────
   renderOrderPanel() {
     const s = this.state;
-    const sel = ORDERS.find((o) => o.ref === s.ordOpenRef);
+    const sel = s.orders.find((o) => o.ref === s.ordOpenRef);
     const open = !!sel;
     const state = sel ? ORD_STATE[this.ordStateOf(sel.ref)] : null;
-    const lines = sel ? sel.items.map(([id, q]) => {
-      const p = this.ordCatalog().find((x) => x.id === id);
-      return { name: p ? p.name : id, qty: q, lineLabel: this.fmt(p ? p.price * q : 0) };
-    }) : [];
+    const lines = sel ? sel.items.map((it) => ({ name: it.name, qty: it.qty, lineLabel: this.fmt(it.price * it.qty) })) : [];
     return `
     <div data-act="ordClose" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="פרטי הזמנה" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(420px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -1495,7 +1510,7 @@ class App {
         </div>
         <table class="table" style="width: 100%"><tbody>
           <tr><td style="color: var(--color-neutral-600); width: 38%">לקוח</td><td>${sel ? esc(sel.customer) : ''}</td></tr>
-          <tr><td style="color: var(--color-neutral-600)">טלפון</td><td style="font-variant-numeric: tabular-nums">${sel ? sel.phone : ''}</td></tr>
+          <tr><td style="color: var(--color-neutral-600)">טלפון</td><td style="font-variant-numeric: tabular-nums">${sel ? esc(sel.phone) : ''}</td></tr>
           <tr><td style="color: var(--color-neutral-600)">אספקה</td><td>${sel ? sel.method : ''}</td></tr>
           <tr><td style="color: var(--color-neutral-600)">כתובת</td><td>${sel ? esc(sel.address) : ''}</td></tr>
           <tr><td style="color: var(--color-neutral-600)">תשלום</td><td>${sel ? sel.pay : ''}</td></tr>

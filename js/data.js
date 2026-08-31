@@ -32,20 +32,6 @@ const SITE_FIELDS = [
   { group: 'פוטר', keys: [['footer', 'שורת פרטי העסק', 'area']] }
 ];
 
-// Placeholder-only: this array ships to every visitor's browser as plain static
-// JS, so it must never hold real customer data. Once a real backend exists, the
-// admin screen should fetch orders from an authenticated API instead of reading
-// this file, and these rows should be deleted.
-const ORDERS = [
-  { ref: '1041', date: '16.08', customer: 'לקוח לדוגמה 1', phone: '050-0000001', method: 'משלוח', address: 'רחוב לדוגמה 1, רחובות', pay: 'Apple Pay', state: 'new', note: 'לצרף ברכה: יום הולדת שמח לאמא.', items: [['p9', 1], ['p13', 1]] },
-  { ref: '1040', date: '16.08', customer: 'לקוח לדוגמה 2', phone: '050-0000002', method: 'איסוף', address: 'איסוף מהסטודיו ברחובות', pay: 'כרטיס אשראי', state: 'new', note: '', items: [['h2', 1]] },
-  { ref: '1039', date: '15.08', customer: 'לקוח לדוגמה 3', phone: '050-0000003', method: 'משלוח', address: 'רחוב לדוגמה 2, גבעתיים', pay: 'Google Pay', state: 'prep', note: 'אריזה למתנה.', items: [['p5', 1], ['p11', 2]] },
-  { ref: '1038', date: '15.08', customer: 'לקוח לדוגמה 4', phone: '050-0000004', method: 'משלוח', address: 'רחוב לדוגמה 3, כפר סבא', pay: 'כרטיס אשראי', state: 'prep', note: '', items: [['p2', 1], ['p3', 1], ['p12', 1]] },
-  { ref: '1037', date: '14.08', customer: 'לקוח לדוגמה 5', phone: '050-0000005', method: 'משלוח', address: 'רחוב לדוגמה 4, רחובות', pay: 'Apple Pay', state: 'sent', note: '', items: [['p10', 1]] },
-  { ref: '1036', date: '13.08', customer: 'לקוח לדוגמה 6', phone: '050-0000006', method: 'איסוף', address: 'איסוף מהסטודיו ברחובות', pay: 'כרטיס אשראי', state: 'sent', note: 'מגיע ביום חמישי אחרי חמש.', items: [['h1', 1], ['h3', 1]] },
-  { ref: '1035', date: '12.08', customer: 'לקוח לדוגמה 7', phone: '050-0000007', method: 'משלוח', address: 'רחוב לדוגמה 5, חולון', pay: 'Google Pay', state: 'sent', note: '', items: [['p4', 1], ['p6', 1]] }
-];
-
 const ORD_STATE = {
   new: { label: 'חדשה', tag: 'tag-accent', next: 'prep', nextLabel: 'להכנה' },
   prep: { label: 'בהכנה', tag: 'tag-neutral', next: 'sent', nextLabel: 'סימון כנשלחה' },

@@ -1,10 +1,16 @@
 const nodemailer = require('nodemailer');
+const { appendOrder } = require('./_orders-store');
 
 const MAX_BYTES = 20 * 1024;
 const NOTIFY_TO = 'giljabes22@gmail.com';
 
 function isNonEmptyString(v, maxLen) {
   return typeof v === 'string' && v.trim().length > 0 && v.length <= maxLen;
+}
+// Strips CR/LF so user-supplied text can't inject extra headers into the
+// notification email (name/email feed the Subject and Reply-To headers).
+function noHeaderBreak(v) {
+  return String(v).replace(/[\r\n]+/g, ' ').trim();
 }
 
 module.exports = async (req, res) => {
@@ -56,11 +62,12 @@ module.exports = async (req, res) => {
   const orderId = 'GY' + Date.now().toString(36).toUpperCase();
   const fmt = (n) => Number(n || 0).toLocaleString('he-IL') + ' ₪';
   const lines = items.map((it) => `  ${it.name} × ${it.qty} — ${fmt(it.price * it.qty)}`).join('\n');
-  const emailStr = isNonEmptyString(data.email, 200) ? data.email.trim() : '';
+  const emailStr = isNonEmptyString(data.email, 200) ? noHeaderBreak(data.email) : '';
+  const safeName = noHeaderBreak(data.name);
   const text = [
     `הזמנה חדשה מהאתר #${orderId}`,
     '',
-    `שם: ${data.name.trim()}`,
+    `שם: ${safeName}`,
     `טלפון: ${data.phone.trim()}`,
     emailStr ? `דוא"ל: ${emailStr}` : null,
     '',
@@ -77,6 +84,34 @@ module.exports = async (req, res) => {
     isNonEmptyString(data.note, 1000) ? `הערה: ${data.note.trim()}` : null,
   ].filter((l) => l !== null).join('\n');
 
+  const now = new Date();
+  const storedOrder = {
+    ref: orderId,
+    date: now.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Jerusalem' }),
+    createdAt: now.toISOString(),
+    customer: safeName,
+    phone: data.phone.trim(),
+    email: emailStr,
+    method: method === 'pickup' ? 'איסוף' : 'משלוח',
+    address: method === 'pickup' ? 'איסוף מהסטודיו ברחובות' : `${data.address.trim()}, ${data.city.trim()}${isNonEmptyString(data.zip, 20) ? ', מיקוד ' + data.zip.trim() : ''}`,
+    pay: data.pay === 'apple' ? 'Apple Pay' : data.pay === 'google' ? 'Google Pay' : 'כרטיס אשראי',
+    note: isNonEmptyString(data.note, 1000) ? data.note.trim() : '',
+    items,
+    subtotal: Number(data.subtotal) || 0,
+    shipping: Number(data.shipping) || 0,
+    total: Number(data.total) || 0,
+    state: 'new',
+  };
+
+  // Persisting is the durable record — do it before the email so the order
+  // is never lost even if Gmail is slow, down, or misconfigured.
+  try {
+    await appendOrder(storedOrder);
+  } catch (err) {
+    res.status(500).json({ error: 'save failed', detail: String(err && err.message || err) });
+    return;
+  }
+
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     res.status(500).json({ error: 'email not configured' });
     return;
@@ -91,10 +126,13 @@ module.exports = async (req, res) => {
       from: `"GAYA — הזמנות" <${process.env.GMAIL_USER}>`,
       to: NOTIFY_TO,
       replyTo: emailStr || undefined,
-      subject: `הזמנה חדשה #${orderId} — ${data.name.trim()}`,
+      subject: `הזמנה חדשה #${orderId} — ${safeName}`,
       text,
     });
   } catch (err) {
+    // The order is already saved and visible in the admin panel even though
+    // email failed — but we still report an error so a broken mail config
+    // doesn't silently go unnoticed.
     res.status(502).json({ error: 'email send failed', detail: String(err && err.message || err) });
     return;
   }
