@@ -168,6 +168,6 @@ h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
   :root { --a11y-b: 84px; --a11y-p: 140px; }
 }
 @media (max-width: 560px) {
-  :root { --pg: 16px; --logo-h: 28px; }
+  :root { --pg: 16px; --logo-h: 34px; }
   :root { --cards: repeat(2, minmax(0, 1fr)); --cards-gap: 26px 12px; --rel: repeat(2, minmax(0, 1fr)); }
 }

@@ -625,7 +625,7 @@ class App {
     return `
     <header style="display: flex; align-items: center; gap: 20px; padding: ${s.scrolled ? '6px' : '10px'} var(--pg); border-bottom: 1px solid var(--color-divider); position: sticky; top: 0; background: var(--color-bg); z-index: 20; transition: padding 0.28s ease, box-shadow 0.28s ease; box-shadow: ${s.scrolled ? '0 1px 0 rgba(35,42,34,0.10), var(--shadow-sm)' : 'none'}">
       <a href="#" data-act="goHome" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; flex: 0 0 auto">
-        <img src="${LOGO_IMG}" alt="GAYA" style="height: calc(var(--logo-h, 34px) * ${logoScale}); width: auto; display: block; transition: height 0.28s ease">
+        <img src="${LOGO_IMG}" alt="GAYA" style="height: calc(var(--logo-h, 42px) * ${logoScale}); width: auto; display: block; transition: height 0.28s ease">
         <span style="font-family: var(--font-heading); font-size: 20px; font-weight: 400; letter-spacing: 0.12em; overflow: hidden; white-space: nowrap; flex: 0 0 auto; transition: max-width 0.3s ease, opacity 0.24s ease; max-width: ${s.scrolled ? '0px' : '120px'}; opacity: ${s.scrolled ? 0 : 1}">גאיה</span>
       </a>
       <nav style="display: var(--nav-display, flex); gap: 28px; font-size: 15px; margin-inline-start: auto; margin-inline-end: 8px">
@@ -665,7 +665,7 @@ class App {
     <footer style="padding: clamp(44px, 6vw, 68px) var(--pg) ${cartBarShown ? 'calc(48px + var(--cart-bar-h, 0px))' : '48px'}; border-top: 1px solid var(--color-divider); font-size: 13.5px; color: var(--color-neutral-600)">
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: clamp(28px, 4vw, 56px); align-items: start">
         <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0">
-          <img src="${LOGO_IMG}" alt="GAYA" style="height: 52px; width: auto; align-self: flex-start; display: block">
+          <img src="${LOGO_IMG}" alt="GAYA" style="height: 64px; width: auto; align-self: flex-start; display: block">
           <span style="line-height: 1.8; max-width: 34ch">${esc(s.site.footer)}</span>
         </div>
         <div style="display: flex; flex-direction: column; gap: 11px; min-width: 0">
@@ -880,7 +880,7 @@ class App {
     return `
     <div data-screen-label="בית">
       <section style="position: relative; min-height: 92vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(30px, 5vh, 56px); padding: clamp(56px, 10vh, 120px) var(--pg) clamp(48px, 8vh, 92px); text-align: center; background: var(--color-bg); border-bottom: 1px solid var(--color-divider)">
-        <img src="${LOGO_IMG}" alt="GAYA — styled by nature" style="width: clamp(240px, 44vw, 520px); height: auto; display: block">
+        <img src="${LOGO_IMG}" alt="GAYA — styled by nature" style="width: clamp(280px, 50vw, 600px); height: auto; display: block">
         <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 62ch">
           <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.heroKicker)}</span>
           <h1 style="font-size: clamp(30px, 3.8vw, 54px); font-weight: 400; line-height: 1.1; text-wrap: pretty; max-width: 22ch">${esc(site.heroTitle)}</h1>
