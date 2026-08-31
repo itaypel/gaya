@@ -14,6 +14,19 @@ function nl2br(str) { return esc(str).replace(/\n/g, '<br>'); }
 // the admin screen must not ship in the same public bundle as the storefront.
 const ADMIN_GATE_PASSCODE = 'oren5422';
 
+// Public VAPID key for Web Push — safe to ship client-side by design (the
+// matching private key that actually authorizes sends stays server-only).
+const VAPID_PUBLIC_KEY = 'BOfKdSatWguKG5FN2pR5bV-cOpct_QLxwrEzro9oNoW7vo7qw9GaURnOMOLNeck-H-HoB2rzSvMBU0Z6JO7iDkY';
+
+function urlBase64ToUint8Array(base64) {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const base64safe = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64safe);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 // Home-delivery service area: coastal/central strip from Ashkelon to Netanya,
 // including the Ramla/Lod area and the moshavim/kibbutzim of the regional
 // councils that fall between the two — nothing south of Ashkelon or north of
@@ -70,7 +83,8 @@ class App {
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
-      orders: [], ordersStatus: 'idle', ordersError: ''
+      orders: [], ordersStatus: 'idle', ordersError: '',
+      pushStatus: 'idle', pushError: ''
     };
     this._fadeT = null;
     root.addEventListener('click', (e) => this.handleClick(e));
@@ -99,6 +113,9 @@ class App {
     if (initialHash && location.hash !== initialHash) history.replaceState(null, '', initialHash);
     this.render();
     this._catalogLoadPromise = this.loadCatalogOverrides();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
   }
 
   setState(patch) {
@@ -221,6 +238,36 @@ class App {
       this.setState({ orders: Array.isArray(data.orders) ? data.orders : [], ordersStatus: 'done' });
     } catch (err) {
       this.setState({ ordersStatus: 'error', ordersError: err.message || 'שגיאה בטעינת ההזמנות' });
+    }
+  }
+
+  async enablePushNotifications() {
+    if (this.state.pushStatus === 'working') return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      this.setState({ pushStatus: 'error', pushError: 'הדפדפן הזה לא תומך בהתראות. באייפון צריך קודם להוסיף את האתר למסך הבית (שיתוף ← הוספה למסך הבית) ולפתוח אותו משם.' });
+      return;
+    }
+    this.setState({ pushStatus: 'working', pushError: '' });
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        this.setState({ pushStatus: 'denied', pushError: 'ההרשאה נדחתה. אפשר להפעיל התראות מהגדרות הדפדפן/האתר בטלפון ולנסות שוב.' });
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+      }
+      const res = await this.withTimeout(fetch('/api/save-push-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+        body: JSON.stringify(sub),
+      }), 15000, 'תם הזמן הקצוב');
+      if (!res.ok) throw new Error('שמירת המנוי נכשלה (' + res.status + ')');
+      this.setState({ pushStatus: 'enabled' });
+    } catch (err) {
+      this.setState({ pushStatus: 'error', pushError: err.message || 'הפעלת ההתראות נכשלה' });
     }
   }
 
@@ -374,6 +421,7 @@ class App {
       case 'resetA11y': this.setState({ font: 100, contrast: false, links: false }); break;
       case 'admGoProducts': this.setState({ admTab: 'products' }); break;
       case 'admGoOrders': this.setState({ admTab: 'orders' }); this.loadOrders(); break;
+      case 'enablePush': this.enablePushNotifications(); break;
       case 'admGoSite': this.setState({ admTab: 'site' }); break;
       case 'admShowAll': this.setState({ admFilter: 'all' }); break;
       case 'admShowKok': this.setState({ admFilter: 'kok' }); break;
@@ -1244,7 +1292,13 @@ class App {
     <div data-screen-label="ניהול">
       <section style="padding: clamp(36px, 5vw, 56px) var(--pg) 28px">
         <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">ניהול</span>
-        <h1 style="font-size: clamp(30px, 3.4vw, 44px); font-weight: 400; margin: 14px 0 22px">ניהול</h1>
+        <h1 style="font-size: clamp(30px, 3.4vw, 44px); font-weight: 400; margin: 14px 0 18px">ניהול</h1>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px">
+          ${s.pushStatus === 'enabled'
+            ? `<span style="font-size: 13.5px; color: var(--color-neutral-700)">🔔 התראות על הזמנות פעילות במכשיר הזה</span>`
+            : `<button class="btn btn-secondary" data-act="enablePush" ${s.pushStatus === 'working' ? 'disabled' : ''}>${s.pushStatus === 'working' ? 'מפעיל…' : 'הפעלת התראות על הזמנות במכשיר הזה'}</button>`}
+          ${s.pushError ? `<span style="font-size: 13px; color: var(--color-accent-700)">${esc(s.pushError)}</span>` : ''}
+        </div>
         <div style="display: flex; gap: 10px; margin-bottom: 26px; flex-wrap: wrap">
           <button class="btn ${s.admTab === 'products' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoProducts" style="gap: 8px">${ICON.bag}<span>מוצרים ומלאי</span></button>
           <button class="btn ${s.admTab === 'orders' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoOrders" style="gap: 8px">${ICON.calendar}<span>יומן הזמנות</span></button>

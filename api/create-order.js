@@ -1,5 +1,7 @@
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 const { appendOrder } = require('./_orders-store');
+const { readSubs, removeSubs } = require('./_push-store');
 
 const MAX_BYTES = 20 * 1024;
 const NOTIFY_TO = 'giljabes22@gmail.com';
@@ -110,6 +112,31 @@ module.exports = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'save failed', detail: String(err && err.message || err) });
     return;
+  }
+
+  // Push is a best-effort second channel — the order is already saved, so a
+  // push failure (or nobody subscribed yet) must never fail the request.
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    try {
+      webpush.setVapidDetails('mailto:giljabes22@gmail.com', process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+      const { subs } = await readSubs();
+      const payload = JSON.stringify({
+        title: 'הזמנה חדשה ב-GAYA',
+        body: `${safeName} · ${fmt(storedOrder.total)}`,
+        url: '/',
+      });
+      const dead = [];
+      await Promise.all(subs.map(async (sub) => {
+        try {
+          await webpush.sendNotification(sub, payload);
+        } catch (err) {
+          if (err && (err.statusCode === 404 || err.statusCode === 410)) dead.push(sub.endpoint);
+        }
+      }));
+      if (dead.length) await removeSubs(dead).catch(() => {});
+    } catch (err) {
+      // ignore — push is best-effort
+    }
   }
 
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
