@@ -880,7 +880,7 @@ class App {
     return `
     <div data-screen-label="בית">
       <section style="position: relative; min-height: var(--hero-min-h, 92vh); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--hero-gap, clamp(30px, 5vh, 56px)); padding: var(--hero-pad, clamp(56px, 10vh, 120px) var(--pg) clamp(48px, 8vh, 92px)); text-align: center; background: var(--color-bg); border-bottom: 1px solid var(--color-divider)">
-        <img src="${LOGO_IMG}" alt="GAYA — styled by nature" style="width: clamp(200px, 58vw, 700px); height: auto; display: block">
+        <img src="${LOGO_IMG}" alt="GAYA — styled by nature" style="width: var(--hero-logo-w, clamp(200px, 26vw, 340px)); height: auto; display: block">
         <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 62ch">
           <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.heroKicker)}</span>
           <h1 style="font-size: clamp(30px, 3.8vw, 54px); font-weight: 400; line-height: 1.1; text-wrap: pretty; max-width: 22ch">${esc(site.heroTitle)}</h1>
