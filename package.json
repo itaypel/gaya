@@ -5,6 +5,7 @@
     "@vercel/blob": "^2.8.0",
     "@vercel/functions": "^3.9.5",
     "heic-convert": "^2.1.0",
+    "nodemailer": "^9.1.0",
     "sharp": "^0.35.4"
   }
 }

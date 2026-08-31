@@ -68,7 +68,8 @@ class App {
       ordFilter: 'all', ordStates: {}, ordOpenRef: null,
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
-      admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: ''
+      admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
+      orderSubmitting: false, orderError: '', lastOrderId: ''
     };
     this._fadeT = null;
     root.addEventListener('click', (e) => this.handleClick(e));
@@ -344,6 +345,7 @@ class App {
       case 'payGoogle': this.setState({ pay: 'google' }); break;
       case 'expressApple': this.nav({ screen: 'checkout', open: false, pay: 'apple' }); break;
       case 'expressGoogle': this.nav({ screen: 'checkout', open: false, pay: 'google' }); break;
+      case 'submitOrder': this.submitOrder(); break;
       case 'toggleA11y': this.setState((st) => ({ a11y: !st.a11y })); break;
       case 'closeA11y': this.setState({ a11y: false }); break;
       case 'fontUp': this.setState((st) => ({ font: Math.min(150, st.font + 10) })); break;
@@ -489,6 +491,7 @@ class App {
           ${s.screen === 'category' ? this.renderCategory() : ''}
           ${s.screen === 'product' ? this.renderProductScreen() : ''}
           ${s.screen === 'checkout' ? this.renderCheckout() : ''}
+          ${s.screen === 'orderThanks' ? this.renderOrderThanks() : ''}
           ${s.screen === 'access' ? this.renderAccess() : ''}
           ${s.screen === 'terms' ? this.renderTerms() : ''}
           ${s.screen === 'shipping' ? this.renderShippingPolicy() : ''}
@@ -671,6 +674,73 @@ class App {
       const p = this.catalog().find((x) => x.id === id);
       return sum + (p ? p.price * s.cart[id] : 0);
     }, 0);
+  }
+
+  async submitOrder() {
+    const s = this.state;
+    if (this.cartCount() === 0 || s.orderSubmitting) return;
+    const val = (id) => (document.getElementById(id)?.value || '').trim();
+    const name = val('f-name');
+    const phone = val('f-phone');
+    const email = val('f-email');
+    const address = val('f-addr');
+    const city = val('f-city');
+    const zip = val('f-zip');
+    const note = val('f-note');
+    const pickup = s.method === 'pickup';
+
+    if (!name || !phone) {
+      this.setState({ orderError: 'נא למלא שם מלא וטלפון.' });
+      return;
+    }
+    if (!pickup && (!address || !city)) {
+      this.setState({ orderError: 'נא למלא כתובת ועיר למשלוח, או לבחור באיסוף עצמי.' });
+      return;
+    }
+    if (!pickup && !DELIVERY_CITIES.includes(city)) {
+      this.setState({ orderError: 'העיר שהוזנה אינה באזור החלוקה שלנו (מאשקלון ועד נתניה). ניתן לבחור עיר מהרשימה, או לעבור לאיסוף עצמי.' });
+      return;
+    }
+
+    const subtotal = this.subtotal();
+    const freeShip = subtotal >= 300;
+    const shipping = pickup || freeShip ? 0 : 39;
+    const items = Object.keys(s.cart).map((id) => {
+      const p = this.catalog().find((x) => x.id === id);
+      return { id, name: p ? p.name : id, qty: s.cart[id], price: p ? p.price : 0 };
+    });
+
+    this.setState({ orderSubmitting: true, orderError: '' });
+    try {
+      const controller = new AbortController();
+      const abortT = setTimeout(() => controller.abort(), 20000);
+      let res;
+      try {
+        res = await fetch('/api/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, phone, email, method: s.method, address, city, zip, note,
+            pay: s.pay, items, subtotal, shipping, total: subtotal + shipping
+          }),
+          signal: controller.signal
+        });
+      } catch (fetchErr) {
+        if (fetchErr && fetchErr.name === 'AbortError') throw new Error('ההזמנה נמשכה יותר מדי זמן — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+        throw new Error('שגיאת רשת — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+      } finally {
+        clearTimeout(abortT);
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error === 'invalid payload' ? 'חסרים פרטים בטופס — יש לבדוק ולנסות שוב.' : ('שליחת ההזמנה נכשלה (' + res.status + '). ניתן ליצור קשר בוואטסאפ במקום.'));
+      }
+      const data = await res.json();
+      this.setState({ orderSubmitting: false, cart: {}, screen: 'orderThanks', lastOrderId: data.orderId || '' });
+      window.scrollTo(0, 0);
+    } catch (err) {
+      this.setState({ orderSubmitting: false, orderError: err.message || 'שליחת ההזמנה נכשלה. יש לנסות שוב.' });
+    }
   }
 
   renderCartAside() {
@@ -948,9 +1018,8 @@ class App {
     const methodNote = pickup
       ? 'הסטודיו ברחובות, פתוח ראשון עד חמישי בין עשר לשש. נשלח הודעה כשההזמנה מוכנה לאיסוף.'
       : 'שליח עד הבית, עד חמישה ימי עסקים, באריזת קרטון עם מגן שורשים. חינם מעל 300 ₪. משלוח זמין לערים באזור החלוקה בלבד — מאשקלון בדרום ועד נתניה בצפון.';
-    const payNote = s.pay === 'apple' ? 'האישור נעשה בטלפון או בשעון — פרטי הכרטיס לא נשמרים אצלנו.'
-      : (s.pay === 'google' ? 'האישור נעשה בחשבון Google שלך, בלי להזין פרטי כרטיס בדף.' : 'הכרטיס נסלק דרך שרת מאובטח. אנחנו לא שומרים את המספר.');
-    const payCta = s.pay === 'apple' ? 'תשלום ב־Apple Pay' : (s.pay === 'google' ? 'תשלום ב־Google Pay' : 'אישור ותשלום');
+    const payNote = 'האתר עדיין לא מחובר למערכת סליקה, ולכן לא נאסוף פרטי כרטיס אשראי כאן. נציג/ה יצור/תיצור איתך קשר לאחר קבלת הבקשה כדי לתאם את התשלום בפועל, לפי אמצעי התשלום שתבחר/י.';
+    const payCta = s.orderSubmitting ? 'שולח…' : 'שליחת בקשת ההזמנה';
     return `
     <div data-screen-label="לתשלום">
       <section style="padding: clamp(36px, 5vw, 56px) var(--pg) 90px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 64px; align-items: start">
@@ -958,6 +1027,7 @@ class App {
           <div>
             <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">תשלום</span>
             <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; margin-top: 14px">פרטי ההזמנה</h1>
+            <p style="margin: 10px 0 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">שליחת הטופס היא בקשת הזמנה — נחזור אליך לתיאום תשלום ואספקה, ההזמנה עוד לא סופית.</p>
           </div>
           <div style="display: flex; flex-direction: column; gap: 16px">
             <h3 style="font-size: 20px; font-weight: 400">איך לקבל</h3>
@@ -986,12 +1056,6 @@ class App {
               <button class="btn ${s.pay === 'google' ? 'btn-primary' : 'btn-secondary'}" data-act="payGoogle" style="gap: 8px">${ICON.google}<span>Google&nbsp;Pay</span></button>
             </div>
             <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">${payNote}</p>
-            ${s.pay === 'card' ? `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 18px">
-              <div class="field" style="grid-column: 1 / -1"><label for="f-card">מספר כרטיס</label><input class="input" id="f-card" placeholder="0000 0000 0000 0000"></div>
-              <div class="field"><label for="f-exp">תוקף</label><input class="input" id="f-exp" placeholder="MM/YY"></div>
-              <div class="field"><label for="f-cvv">שלוש ספרות בגב</label><input class="input" id="f-cvv" placeholder="CVV"></div>
-            </div>` : ''}
           </div>
         </div>
 
@@ -1011,10 +1075,26 @@ class App {
             <span style="font-size: 16px">לתשלום</span>
             <span style="font-family: var(--font-heading); font-size: 28px; font-variant-numeric: tabular-nums">${this.fmt(subtotal + shipping)}</span>
           </div>
-          <button class="btn btn-primary btn-block" style="min-height: 48px">${payCta}</button>
+          ${s.orderError ? `<p style="margin: 0; font-size: 13px; line-height: 1.7; color: var(--color-accent-700)">${esc(s.orderError)}</p>` : ''}
+          <button class="btn btn-primary btn-block" data-act="submitOrder" ${s.orderSubmitting ? 'disabled' : ''} style="min-height: 48px">${payCta}</button>
           <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">כל כריכה נבדקת ביד לפני האריזה.</p>
         </aside>
       </section>
+    </div>`;
+  }
+
+  // ── ORDER THANKS ─────────────────────────────────────────────────────
+  renderOrderThanks() {
+    const s = this.state;
+    return `
+    <div data-screen-label="בקשה נשלחה" style="display: flex; align-items: center; justify-content: center; min-height: 60vh; padding: 40px var(--pg)">
+      <div class="card" style="max-width: 460px; width: 100%; padding: clamp(28px, 4vw, 40px); gap: 18px; text-align: center; align-items: center">
+        <span class="card-kicker">תודה</span>
+        <h1 style="font-size: clamp(26px, 3vw, 34px); font-weight: 400; margin: 0">בקשת ההזמנה שלך התקבלה</h1>
+        <p style="margin: 0; font-size: 15px; line-height: 1.9; color: var(--color-neutral-700)">ניצור איתך קשר בהקדם לתיאום התשלום והאספקה. אם משהו דחוף — אפשר לפנות אלינו גם בוואטסאפ.</p>
+        ${s.lastOrderId ? `<p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">מספר הבקשה: ${esc(s.lastOrderId)}</p>` : ''}
+        <button class="btn btn-primary" data-act="goHome" style="margin-top: 8px">חזרה לחנות</button>
+      </div>
     </div>`;
   }
 
