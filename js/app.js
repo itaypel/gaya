@@ -1541,7 +1541,7 @@ class App {
             ${uploadTargetId ? `
             <label class="btn btn-secondary" for="a-img-file" style="align-self: flex-start; cursor: pointer; ${s.nfImgStatus === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.nfImgStatus === 'uploading' ? 'מעלה…' : (imgSrc ? 'החלפת תמונה' : 'הוספת תמונה')}</label>
             <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-nf-img-file="1" style="display: none">
-            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה עודכנה — תופיע באתר החי בתוך דקות ספורות.' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
+            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה עודכנה — תופיע באתר החי תוך כדקה (יכול להיראות כמו התמונה הישנה עד אז, גם אחרי רענון).' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
             ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.nfImgError)}</p>` : ''}
             <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG, WEBP או תמונת אייפון (HEIC) — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
             ` : ''}

@@ -69,7 +69,10 @@ module.exports = async (req, res) => {
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: 'image/jpeg',
-      cacheControlMaxAge: 300,
+      // Vercel Blob enforces a 60s platform minimum here — this is that floor,
+      // not a choice. A higher value (300s was here before) directly extends
+      // how long an edited product can keep showing its old image.
+      cacheControlMaxAge: 60,
       token: process.env.PRODUCTS_BLOB_TOKEN,
     });
     res.status(200).json({ url: blob.url });
