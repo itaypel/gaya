@@ -298,6 +298,12 @@ class App {
       size: (nf.size || '').trim(), light: (nf.light || '').trim(),
       water: (nf.water || '').trim(), desc: (nf.desc || '').trim()
     };
+    // A product that never had a photo (img: '' in its base catalog entry)
+    // needs its edits.img set explicitly here, or the upload succeeds but
+    // the catalog record never starts pointing at it — the site keeps
+    // showing the "בצילום" placeholder forever even though the real photo
+    // is sitting in Blob storage at the right path.
+    if (this.state.nfImgStatus === 'done') patch.img = BLOB_IMG_BASE + editId + '.jpg';
     this.setState((st) => ({
       edits: Object.assign({}, st.edits, { [editId]: Object.assign({}, st.edits[editId], patch) }),
       stock: Object.assign({}, st.stock, { [editId]: Number(nf.stock) || 0 }),
@@ -1548,8 +1554,8 @@ class App {
     const nf = s.nf;
     const editingProd = s.editId ? this.catalog().find((x) => x.id === s.editId) : null;
     const uploadTargetId = s.editId || s.nfNewId;
-    const imgSrc = editingProd && editingProd.img ? editingProd.img + '?v=' + (s.nfImgBust || 0)
-      : (!editingProd && s.nfImgStatus === 'done' && s.nfNewId) ? BLOB_IMG_BASE + s.nfNewId + '.jpg' + '?v=' + s.nfImgBust : '';
+    const imgSrc = s.nfImgStatus === 'done' && uploadTargetId ? BLOB_IMG_BASE + uploadTargetId + '.jpg' + '?v=' + s.nfImgBust
+      : (editingProd && editingProd.img) ? editingProd.img + '?v=' + (s.nfImgBust || 0) : '';
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
