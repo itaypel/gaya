@@ -83,7 +83,7 @@ class App {
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
-      orders: [], ordersStatus: 'idle', ordersError: '',
+      orders: [], ordersStatus: 'idle', ordersError: '', imgBusts: {},
       pushStatus: 'idle', pushError: '',
       storyImgStatus1: 'idle', storyImgError1: '', storyImgBust1: 0,
       storyImgStatus2: 'idle', storyImgError2: '', storyImgBust2: 0
@@ -537,7 +537,8 @@ class App {
     this.setState({ nfImgStatus: 'uploading', nfImgError: '' });
     try {
       await this._uploadImageFile(id, file);
-      this.setState({ nfImgStatus: 'done', nfImgBust: Date.now() });
+      const bust = Date.now();
+      this.setState((st) => ({ nfImgStatus: 'done', nfImgBust: bust, imgBusts: Object.assign({}, st.imgBusts, { [id]: bust }) }));
     } catch (err) {
       this.setState({ nfImgStatus: 'error', nfImgError: (err && err.message) || 'ההעלאה נכשלה' });
     }
@@ -602,12 +603,21 @@ class App {
     this.root.setAttribute('data-a11y-links', s.links ? '1' : '0');
   }
 
+  // Vercel Blob's CDN can serve a product's old photo for up to a minute
+  // after a real overwrite — these fixed URLs have no visitor-facing cache
+  // buster, so a same-session admin who just uploaded a new image would
+  // otherwise see the stale one too, even after closing the editor.
+  // imgBusts persists independently of the edit-form lifecycle (closing/
+  // cancelling the form resets editId/nfImgBust, but not this) so the
+  // bust survives long enough for the admin to actually go look.
+  bustFor(id) { return this.state.imgBusts[id] || 0; }
   // ── shared: product tile ────────────────────────────────────────────
   shape(p) {
     const stock = this.stockOf(p.id);
+    const bust = this.bustFor(p.id);
     return {
       id: p.id, name: p.name, size: p.size, desc: p.desc,
-      bg: p.img ? `url('${p.img}')` : 'none',
+      bg: p.img ? `url('${p.img}${bust ? '?v=' + bust : ''}')` : 'none',
       has3d: !!p.embed || !!p.model, noPhoto: !p.img && !p.embed && !p.model,
       stockLabel: stock === 0 ? 'לא זמין' : (stock <= 2 ? 'יחידות אחרונות' : 'זמין במלאי'),
       stockTag: stock === 0 ? 'tag-outline' : (stock <= 2 ? 'tag-accent' : 'tag-neutral'),
@@ -925,10 +935,10 @@ class App {
             <p style="margin: 0; font-size: 16.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.storyIntro)}</p>
             <hr class="hr" style="margin: 2px 0">
             <p style="margin: 0; font-size: 15.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.storyFounders)}</p>
-            <div class="plate" style="position: relative; flex: 1; max-width: 420px; min-height: clamp(220px, 24vw, 340px); min-width: 0; overflow: hidden"><img src="${STORY_IMG_2}" alt="פינה בסטודיו"></div>
+            <div class="plate" style="position: relative; flex: 1; max-width: 420px; min-height: clamp(220px, 24vw, 340px); min-width: 0; overflow: hidden"><img src="${STORY_IMG_2}${s.storyImgBust2 ? '?v=' + s.storyImgBust2 : ''}" alt="פינה בסטודיו"></div>
           </div>
           <div style="display: flex; flex-direction: column; gap: 20px; min-width: 0">
-            <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden"><img src="${STORY_IMG_1}" alt="הסטודיו של GAYA"></div>
+            <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden"><img src="${STORY_IMG_1}${s.storyImgBust1 ? '?v=' + s.storyImgBust1 : ''}" alt="הסטודיו של GAYA"></div>
             <div style="display: flex; flex-direction: column; gap: 12px">
               <h3 style="font-size: 22px; font-weight: 400">${esc(site.kokedamaQ)}</h3>
               <p style="margin: 0; font-size: 15px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.kokedamaA)}</p>
@@ -1041,7 +1051,7 @@ class App {
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : `
           <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
-            ${prod.img ? `<img src="${prod.img}" alt="${esc(prod.name)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
+            ${prod.img ? `<img src="${prod.img}${this.bustFor(prod.id) ? '?v=' + this.bustFor(prod.id) : ''}" alt="${esc(prod.name)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
           </div>`}
           ${related.length > 0 ? `
           <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 8px">
