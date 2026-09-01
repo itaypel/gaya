@@ -575,7 +575,13 @@ class App {
       ${this.renderNavAside()}
     `;
     this.root.innerHTML = html;
+    // The whole app is styled with hardcoded px (including inside clamp()
+    // expressions), not rem/em, so scaling the root font-size percentage has
+    // no effect on anything. `zoom` scales the actual rendered content —
+    // the only reliable way to make "increase text" do something here
+    // without rewriting every font-size in the codebase to a relative unit.
     document.documentElement.style.fontSize = s.font + '%';
+    this.root.style.zoom = (s.font / 100);
     document.documentElement.style.filter = s.contrast ? 'contrast(1.35) saturate(1.1)' : 'none';
     this.root.setAttribute('data-a11y-links', s.links ? '1' : '0');
   }
