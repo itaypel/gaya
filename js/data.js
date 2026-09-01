@@ -72,6 +72,6 @@ const CATALOG = [
   { id: 'p16', img: BLOB_IMG_BASE + 'p16.jpg', name: 'קוקודמה קלתאה אינסיגניס', price: 250, size: 'קטנה', light: 'צל חלקי', water: 'טבילה אחת לחמישה ימים', desc: 'עלים מנוקדים שנסגרים בלילה. צריכה לחות ומים בטמפרטורת החדר.' }
 ];
 
-const STORY_IMG_1 = 'assets/images/plant-16.jpg';
-const STORY_IMG_2 = 'assets/images/plant-18.jpg';
+const STORY_IMG_1 = BLOB_IMG_BASE + 'story1.jpg';
+const STORY_IMG_2 = BLOB_IMG_BASE + 'story2.jpg';
 const LOGO_IMG = 'assets/images/gaya-logo.png';

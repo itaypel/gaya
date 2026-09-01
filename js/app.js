@@ -84,7 +84,9 @@ class App {
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
       orders: [], ordersStatus: 'idle', ordersError: '',
-      pushStatus: 'idle', pushError: ''
+      pushStatus: 'idle', pushError: '',
+      storyImgStatus1: 'idle', storyImgError1: '', storyImgBust1: 0,
+      storyImgStatus2: 'idle', storyImgError2: '', storyImgBust2: 0
     };
     this._fadeT = null;
     root.addEventListener('click', (e) => this.handleClick(e));
@@ -455,6 +457,7 @@ class App {
     else if (t.dataset.nfField) this.setNf(t.dataset.nfField, t.value);
     else if (t.dataset.admPass) this.state.admPass = t.value;
     else if (t.dataset.nfImgFile) { const f = t.files && t.files[0]; t.value = ''; if (f) this.uploadProductImage(this.state.editId || this.state.nfNewId, f); }
+    else if (t.dataset.storyImgFile) { const f = t.files && t.files[0]; const slot = t.dataset.storyImgFile; t.value = ''; if (f) this.uploadStoryImage(slot, f); }
   }
 
   withTimeout(promise, ms, message) {
@@ -492,48 +495,61 @@ class App {
     });
   }
 
+  async _uploadImageFile(id, file) {
+    const isHeic = this.looksLikeHeic(file);
+    // HEIC can't be decoded by <canvas> in the browser, so send it to the
+    // server as-is (under the platform's 4.5MB request-body limit) and let
+    // the API route convert + resize it there instead.
+    if (isHeic && file.size > 4 * 1024 * 1024) {
+      throw new Error('התמונה גדולה מדי (מעל 4MB). אפשר לצמצם אותה או לצלם באיכות נמוכה יותר ולנסות שוב.');
+    }
+    const body = isHeic ? file : await this.withTimeout(this.resizeImageFile(file, 1600, 0.85), 15000, 'לא הצלחנו לעבד את התמונה בזמן סביר — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.');
+    const contentType = isHeic ? (file.type || 'image/heic') : body.type;
+    const controller = new AbortController();
+    const abortT = setTimeout(() => controller.abort(), 30000);
+    let res;
+    try {
+      res = await fetch('/api/upload-image?id=' + encodeURIComponent(id), {
+        method: 'POST',
+        headers: { 'Content-Type': contentType, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+        body,
+        signal: controller.signal
+      });
+    } catch (fetchErr) {
+      if (fetchErr && fetchErr.name === 'AbortError') throw new Error('ההעלאה נמשכה יותר מדי זמן — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+      throw new Error('שגיאת רשת בהעלאה — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+    } finally {
+      clearTimeout(abortT);
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const known = {
+        'heic conversion failed': 'לא הצלחנו להמיר את קובץ ה-HEIC. אפשר לנסות תמונה אחרת או לשמור אותה כ-JPG.',
+        'image too large': 'התמונה גדולה מדי. אפשר לצמצם אותה ולנסות שוב.',
+        'unsupported image type': 'סוג הקובץ לא נתמך. יש להעלות JPG, PNG, WEBP או תמונת אייפון (HEIC).',
+        'unauthorized': 'ההעלאה נחסמה — יש להתחבר מחדש לפאנל הניהול ולנסות שוב.'
+      };
+      throw new Error(known[data.error] || data.error || ('שגיאה בהעלאה (' + res.status + ')'));
+    }
+  }
   async uploadProductImage(id, file) {
     if (!id) return;
     this.setState({ nfImgStatus: 'uploading', nfImgError: '' });
     try {
-      const isHeic = this.looksLikeHeic(file);
-      // HEIC can't be decoded by <canvas> in the browser, so send it to the
-      // server as-is (under the platform's 4.5MB request-body limit) and let
-      // the API route convert + resize it there instead.
-      if (isHeic && file.size > 4 * 1024 * 1024) {
-        throw new Error('התמונה גדולה מדי (מעל 4MB). אפשר לצמצם אותה או לצלם באיכות נמוכה יותר ולנסות שוב.');
-      }
-      const body = isHeic ? file : await this.withTimeout(this.resizeImageFile(file, 1600, 0.85), 15000, 'לא הצלחנו לעבד את התמונה בזמן סביר — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.');
-      const contentType = isHeic ? (file.type || 'image/heic') : body.type;
-      const controller = new AbortController();
-      const abortT = setTimeout(() => controller.abort(), 30000);
-      let res;
-      try {
-        res = await fetch('/api/upload-image?id=' + encodeURIComponent(id), {
-          method: 'POST',
-          headers: { 'Content-Type': contentType, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
-          body,
-          signal: controller.signal
-        });
-      } catch (fetchErr) {
-        if (fetchErr && fetchErr.name === 'AbortError') throw new Error('ההעלאה נמשכה יותר מדי זמן — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
-        throw new Error('שגיאת רשת בהעלאה — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
-      } finally {
-        clearTimeout(abortT);
-      }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const known = {
-          'heic conversion failed': 'לא הצלחנו להמיר את קובץ ה-HEIC. אפשר לנסות תמונה אחרת או לשמור אותה כ-JPG.',
-          'image too large': 'התמונה גדולה מדי. אפשר לצמצם אותה ולנסות שוב.',
-          'unsupported image type': 'סוג הקובץ לא נתמך. יש להעלות JPG, PNG, WEBP או תמונת אייפון (HEIC).',
-          'unauthorized': 'ההעלאה נחסמה — יש להתחבר מחדש לפאנל הניהול ולנסות שוב.'
-        };
-        throw new Error(known[data.error] || data.error || ('שגיאה בהעלאה (' + res.status + ')'));
-      }
+      await this._uploadImageFile(id, file);
       this.setState({ nfImgStatus: 'done', nfImgBust: Date.now() });
     } catch (err) {
       this.setState({ nfImgStatus: 'error', nfImgError: (err && err.message) || 'ההעלאה נכשלה' });
+    }
+  }
+  async uploadStoryImage(slot, file) {
+    const statusKey = 'storyImgStatus' + slot, errorKey = 'storyImgError' + slot, bustKey = 'storyImgBust' + slot;
+    this.setState({ [statusKey]: 'uploading', [errorKey]: '' });
+    try {
+      await this._uploadImageFile('story' + slot, file);
+      this.setState({ [statusKey]: 'done', [bustKey]: Date.now() });
+    } catch (err) {
+      this.setState({ [statusKey]: 'error', [errorKey]: (err && err.message) || 'ההעלאה נכשלה' });
     }
   }
 
@@ -1339,19 +1355,27 @@ class App {
     return `
     <section style="padding: 0 var(--pg) 30px">
       <div class="card" style="padding: clamp(18px, 2.4vw, 26px); gap: 18px; margin-top: 16px; flex-direction: row; align-items: flex-start; flex-wrap: wrap">
-        <div class="plate" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; flex: 0 0 auto"><img src="${STORY_IMG_1}" alt="תמונת מדור הסטודיו"></div>
+        <div class="plate" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; flex: 0 0 auto"><img src="${STORY_IMG_1}${s.storyImgBust1 ? '?v=' + s.storyImgBust1 : ''}" alt="תמונת מדור הסטודיו"></div>
         <div style="flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 8px">
           <span class="card-kicker">מדור הסטודיו</span>
           <h2 style="font-size: 20px; font-weight: 400">התמונה בסיפור העסק</h2>
-          <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שמופיעה לצד הסיפור בדף הבית. פריים אנכי מתאים לה — היחס בעמוד הוא ארבע על חמש. להחלפתה יש לעדכן את הקובץ assets/images/plant-16.jpg. את הטקסט עצמו משנים בלשונית ניהול האתר.</p>
+          <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שמופיעה לצד הסיפור בדף הבית. פריים אנכי מתאים לה — היחס בעמוד הוא ארבע על חמש. את הטקסט עצמו משנים בלשונית ניהול האתר.</p>
+          <label class="btn btn-secondary" for="a-story-img-1" style="align-self: flex-start; cursor: pointer; margin-top: 4px; ${s.storyImgStatus1 === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.storyImgStatus1 === 'uploading' ? 'מעלה…' : 'החלפת תמונה'}</label>
+          <input type="file" id="a-story-img-1" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-story-img-file="1" style="display: none">
+          ${s.storyImgStatus1 === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי תוך כדקה.</p>` : ''}
+          ${s.storyImgStatus1 === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.storyImgError1)}</p>` : ''}
         </div>
       </div>
       <div class="card" style="padding: clamp(18px, 2.4vw, 26px); gap: 18px; margin-top: 16px; flex-direction: row; align-items: flex-start; flex-wrap: wrap">
-        <div class="plate" style="position: relative; width: 168px; aspect-ratio: 3/2; overflow: hidden; flex: 0 0 auto"><img src="${STORY_IMG_2}" alt="פינה בסטודיו"></div>
+        <div class="plate" style="position: relative; width: 168px; aspect-ratio: 3/2; overflow: hidden; flex: 0 0 auto"><img src="${STORY_IMG_2}${s.storyImgBust2 ? '?v=' + s.storyImgBust2 : ''}" alt="פינה בסטודיו"></div>
         <div style="flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 8px">
           <span class="card-kicker">מדור הסטודיו</span>
           <h2 style="font-size: 20px; font-weight: 400">התמונה השנייה בסיפור</h2>
-          <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שיושבת מתחת לסיפור, מול ההסבר על הקוקודמה. להחלפתה יש לעדכן את הקובץ assets/images/plant-18.jpg.</p>
+          <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שיושבת מתחת לסיפור, מול ההסבר על הקוקודמה.</p>
+          <label class="btn btn-secondary" for="a-story-img-2" style="align-self: flex-start; cursor: pointer; margin-top: 4px; ${s.storyImgStatus2 === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.storyImgStatus2 === 'uploading' ? 'מעלה…' : 'החלפת תמונה'}</label>
+          <input type="file" id="a-story-img-2" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-story-img-file="2" style="display: none">
+          ${s.storyImgStatus2 === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי תוך כדקה.</p>` : ''}
+          ${s.storyImgStatus2 === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.storyImgError2)}</p>` : ''}
         </div>
       </div>
 
