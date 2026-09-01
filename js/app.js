@@ -644,10 +644,8 @@ class App {
           <h3 style="font-size: 19px; font-weight: 400; min-width: 0"><a href="#" data-act="open" data-id="${p.id}" style="color: inherit">${esc(p.name)}</a></h3>
           <span style="flex: 0 0 auto; white-space: nowrap; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${sh.priceLabel}</span>
         </div>
-        ${!featured ? `<p style="margin: 0; font-size: 13.5px; line-height: 1.75; color: var(--color-neutral-700); min-height: 48px">${esc(p.desc)}</p>` : ''}
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap">
           <span style="display: flex; gap: 6px; flex-wrap: wrap">
-            ${!featured ? `<span class="tag tag-neutral">${esc(p.size)}</span>` : ''}
             <span class="tag ${sh.stockTag}">${sh.stockLabel}</span>
             ${sh.has3d ? `<span class="tag tag-accent">תלת־ממד</span>` : ''}
           </span>
@@ -1060,26 +1058,6 @@ class App {
           <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
             ${prod.img ? `<img src="${prod.img}${(prod.imgV || this.bustFor(prod.id)) ? '?v=' + (prod.imgV || this.bustFor(prod.id)) : ''}" alt="${esc(prod.name)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
           </div>`}
-          ${related.length > 0 ? `
-          <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 8px">
-            <div style="display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">
-              ${ICON.dot}
-              <h2 style="font-size: 19px; font-weight: 400">צמחים באותם תנאים</h2>
-            </div>
-            <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">כולם מבקשים ${esc(prod.light)} — אפשר להעמיד אותם באותה פינה. קצב ההשקיה מצוין מתחת לכל אחד.</p>
-            <div style="display: grid; grid-template-columns: var(--rel, repeat(3, minmax(0, 1fr))); gap: 14px">
-              ${related.map((r) => `
-              <article style="display: flex; flex-direction: column; gap: 9px; min-width: 0">
-                <div data-act="open" data-id="${r.id}" class="plate" role="img" aria-label="${esc(r.name)}" style="position: relative; aspect-ratio: 1; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${r.img ? `url('${r.img}')` : 'none'}; background-size: cover; background-position: center">
-                  ${!r.img && !r.embed && !r.model ? `<span style="position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.2em; color: var(--color-neutral-800)">בצילום</span>` : ''}
-                  ${r.embed || r.model ? `<span style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--color-neutral-800)">${ICON.cubeSm}<span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.18em">תלת־ממד</span></span>` : ''}
-                </div>
-                <a href="#" data-act="open" data-id="${r.id}" style="font-size: 14px; line-height: 1.5; color: inherit">${esc(r.name)}</a>
-                <span style="font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${this.fmt(r.price)}</span>
-                <span style="font-size: 12px; line-height: 1.5; color: var(--color-neutral-700)">${esc(r.water)}</span>
-              </article>`).join('')}
-            </div>
-          </div>` : ''}
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 10px">
@@ -1104,6 +1082,26 @@ class App {
             <button class="btn btn-secondary" data-act="goKokedama" style="min-height: 46px">לקטלוג</button>
           </div>
           <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">משלוח חינם בהזמנה מעל 300 ₪ · עד חמישה ימי עסקים</p>
+          ${related.length > 0 ? `
+          <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 8px">
+            <div style="display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">
+              ${ICON.dot}
+              <h2 style="font-size: 19px; font-weight: 400">צמחים באותם תנאים</h2>
+            </div>
+            <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">כולם מבקשים ${esc(prod.light)} — אפשר להעמיד אותם באותה פינה. קצב ההשקיה מצוין מתחת לכל אחד.</p>
+            <div style="display: grid; grid-template-columns: var(--rel, repeat(3, minmax(0, 1fr))); gap: 14px">
+              ${related.map((r) => `
+              <article style="display: flex; flex-direction: column; gap: 9px; min-width: 0">
+                <div data-act="open" data-id="${r.id}" class="plate" role="img" aria-label="${esc(r.name)}" style="position: relative; aspect-ratio: 1; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${r.img ? `url('${r.img}')` : 'none'}; background-size: cover; background-position: center">
+                  ${!r.img && !r.embed && !r.model ? `<span style="position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.2em; color: var(--color-neutral-800)">בצילום</span>` : ''}
+                  ${r.embed || r.model ? `<span style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--color-neutral-800)">${ICON.cubeSm}<span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.18em">תלת־ממד</span></span>` : ''}
+                </div>
+                <a href="#" data-act="open" data-id="${r.id}" style="font-size: 14px; line-height: 1.5; color: inherit">${esc(r.name)}</a>
+                <span style="font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${this.fmt(r.price)}</span>
+                <span style="font-size: 12px; line-height: 1.5; color: var(--color-neutral-700)">${esc(r.water)}</span>
+              </article>`).join('')}
+            </div>
+          </div>` : ''}
         </div>
       </section>
     </div>`;
