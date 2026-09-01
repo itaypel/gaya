@@ -303,7 +303,7 @@ class App {
     // the catalog record never starts pointing at it — the site keeps
     // showing the "בצילום" placeholder forever even though the real photo
     // is sitting in Blob storage at the right path.
-    if (this.state.nfImgStatus === 'done') patch.img = BLOB_IMG_BASE + editId + '.jpg';
+    if (this.state.nfImgStatus === 'done') { patch.img = BLOB_IMG_BASE + editId + '.jpg'; patch.imgV = Date.now(); }
     this.setState((st) => ({
       edits: Object.assign({}, st.edits, { [editId]: Object.assign({}, st.edits[editId], patch) }),
       stock: Object.assign({}, st.stock, { [editId]: Number(nf.stock) || 0 }),
@@ -336,8 +336,9 @@ class App {
     const name = (nf.name || '').trim();
     if (!name) return;
     const id = this.state.nfNewId || ('x' + (this.state.extra.length + 1));
+    const hasImg = this.state.nfImgStatus === 'done';
     const item = {
-      id, img: this.state.nfImgStatus === 'done' ? (BLOB_IMG_BASE + id + '.jpg') : '', cat: nf.cat === 'hydro' ? 'hydro' : undefined,
+      id, img: hasImg ? (BLOB_IMG_BASE + id + '.jpg') : '', imgV: hasImg ? Date.now() : undefined, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       name, price: Number(nf.price) || 0,
       size: (nf.size || '').trim() || 'בינונית',
       light: (nf.light || '').trim() || 'אור עקיף בהיר',
@@ -609,18 +610,18 @@ class App {
     this.root.setAttribute('data-a11y-links', s.links ? '1' : '0');
   }
 
-  // Vercel Blob's CDN can serve a product's old photo for up to a minute
-  // after a real overwrite — these fixed URLs have no visitor-facing cache
-  // buster, so a same-session admin who just uploaded a new image would
-  // otherwise see the stale one too, even after closing the editor.
-  // imgBusts persists independently of the edit-form lifecycle (closing/
-  // cancelling the form resets editId/nfImgBust, but not this) so the
-  // bust survives long enough for the admin to actually go look.
+  // Vercel Blob's CDN (and every visitor's own browser cache) can serve a
+  // product's old photo for up to a minute after a real overwrite — these
+  // fixed URLs have no cache buster otherwise. p.imgV is a timestamp saved
+  // to the catalog itself on every image upload, so the bust applies for
+  // ALL visitors on their next load, not just the admin's current tab.
+  // imgBusts is a same-tick fallback for the instant after upload, before
+  // the edit's imgV has made it into a render pass.
   bustFor(id) { return this.state.imgBusts[id] || 0; }
   // ── shared: product tile ────────────────────────────────────────────
   shape(p) {
     const stock = this.stockOf(p.id);
-    const bust = this.bustFor(p.id);
+    const bust = p.imgV || this.bustFor(p.id);
     return {
       id: p.id, name: p.name, size: p.size, desc: p.desc,
       bg: p.img ? `url('${p.img}${bust ? '?v=' + bust : ''}')` : 'none',
@@ -1057,7 +1058,7 @@ class App {
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : `
           <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
-            ${prod.img ? `<img src="${prod.img}${this.bustFor(prod.id) ? '?v=' + this.bustFor(prod.id) : ''}" alt="${esc(prod.name)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
+            ${prod.img ? `<img src="${prod.img}${(prod.imgV || this.bustFor(prod.id)) ? '?v=' + (prod.imgV || this.bustFor(prod.id)) : ''}" alt="${esc(prod.name)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
           </div>`}
           ${related.length > 0 ? `
           <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 8px">
@@ -1425,7 +1426,7 @@ class App {
             return `
           <tr>
             <td><span style="display: flex; align-items: center; gap: 12px">
-              <span role="img" aria-label="${esc(p.name)}" style="position: relative; width: 40px; height: 50px; flex: 0 0 auto; border: 1px solid var(--color-divider); background-color: var(--color-neutral-200); background-image: ${p.img ? `url('${p.img}')` : 'none'}; background-size: cover; background-position: center; display: block"></span>
+              <span role="img" aria-label="${esc(p.name)}" style="position: relative; width: 40px; height: 50px; flex: 0 0 auto; border: 1px solid var(--color-divider); background-color: var(--color-neutral-200); background-image: ${p.img ? `url('${p.img}${p.imgV ? '?v=' + p.imgV : ''}')` : 'none'}; background-size: cover; background-position: center; display: block"></span>
               <span>
                 <button data-act="admEdit" data-id="${p.id}" style="background: none; border: 0; padding: 0; font-family: var(--font-body); font-size: inherit; color: inherit; cursor: pointer; text-align: start; text-decoration: underline; text-decoration-color: var(--color-neutral-400)">${esc(p.name)}</button>
                 ${p.isNew ? `<span class="tag tag-accent" style="margin-inline-start: 8px">חדש</span>` : ''}
@@ -1555,7 +1556,7 @@ class App {
     const editingProd = s.editId ? this.catalog().find((x) => x.id === s.editId) : null;
     const uploadTargetId = s.editId || s.nfNewId;
     const imgSrc = s.nfImgStatus === 'done' && uploadTargetId ? BLOB_IMG_BASE + uploadTargetId + '.jpg' + '?v=' + s.nfImgBust
-      : (editingProd && editingProd.img) ? editingProd.img + '?v=' + (s.nfImgBust || 0) : '';
+      : (editingProd && editingProd.img) ? editingProd.img + '?v=' + (editingProd.imgV || s.nfImgBust || 0) : '';
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -1587,7 +1588,7 @@ class App {
             ${uploadTargetId ? `
             <label class="btn btn-secondary" for="a-img-file" style="align-self: flex-start; cursor: pointer; ${s.nfImgStatus === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.nfImgStatus === 'uploading' ? 'מעלה…' : (imgSrc ? 'החלפת תמונה' : 'הוספת תמונה')}</label>
             <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-nf-img-file="1" style="display: none">
-            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה עודכנה — תופיע באתר החי תוך כדקה (יכול להיראות כמו התמונה הישנה עד אז, גם אחרי רענון).' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
+            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה הועלתה — אחרי לחיצה על "שמירה" היא תופיע מיד באתר החי, לכל המבקרים.' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
             ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.nfImgError)}</p>` : ''}
             <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG, WEBP או תמונת אייפון (HEIC) — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
             ` : ''}
