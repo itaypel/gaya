@@ -136,7 +136,8 @@ class App {
         edits: (data.edits && typeof data.edits === 'object') ? data.edits : {},
         removed: (data.removed && typeof data.removed === 'object') ? data.removed : {},
         stock: Object.assign({}, STOCK, (data.stock && typeof data.stock === 'object') ? data.stock : {}),
-        extra: Array.isArray(data.extra) ? data.extra : []
+        extra: Array.isArray(data.extra) ? data.extra : [],
+        site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {})
       });
     } catch (e) {
       // offline or blocked — visitors still see the last-deployed catalog
@@ -148,7 +149,7 @@ class App {
     // snapshot and silently undo changes saved from another session.
     if (this._catalogLoadPromise) { await this._catalogLoadPromise; this._catalogLoadPromise = null; }
     this.setState({ catalogSyncStatus: 'saving' });
-    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra };
+    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site };
     try {
       const headers = { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE };
       if (this._catalogEtag) headers['X-Catalog-Etag'] = this._catalogEtag;
@@ -455,6 +456,7 @@ class App {
       case 'ordClose': this.setState({ ordOpenRef: null }); break;
       case 'ordAdvance': this.ordAdvanceRef(id || s.ordOpenRef); break;
       case 'siteReset': this.resetSite(); break;
+      case 'siteSave': this.persistCatalog(); break;
       default: break;
     }
   }
@@ -1520,7 +1522,7 @@ class App {
     const numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
     return `
     <section style="padding: 0 var(--pg) 80px; max-width: 900px">
-      <p style="margin: 0 0 30px; font-size: 15px; line-height: 1.85; text-align: justify; color: var(--color-neutral-800)">כל שינוי כאן מופיע מיד באתר. השדות מסודרים לפי המדור שבו הטקסט מוצג.</p>
+      <p style="margin: 0 0 30px; font-size: 15px; line-height: 1.85; text-align: justify; color: var(--color-neutral-800)">שינוי כאן מתעדכן מיד בתצוגה המקדימה שלך, אבל לא נשמר אצל שאר המבקרים עד שלוחצים על "שמירת שינויים". השדות מסודרים לפי המדור שבו הטקסט מוצג.</p>
       <div style="display: flex; flex-direction: column; gap: 34px">
         ${SITE_FIELDS.map((grp, gi) => `
         <div style="display: flex; flex-direction: column; gap: 16px">
@@ -1540,9 +1542,14 @@ class App {
         </div>`).join('')}
       </div>
       <div style="display: flex; gap: 12px; align-items: center; margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--color-divider); flex-wrap: wrap">
+        <button class="btn btn-primary" data-act="siteSave">${s.catalogSyncStatus === 'saving' ? 'שומר…' : 'שמירת שינויים'}</button>
         <button class="btn btn-secondary" data-act="goHome">צפייה בדף הבית</button>
         <button class="btn btn-ghost" data-act="siteReset" style="border: 0">החזרה לטקסטים המקוריים</button>
       </div>
+      ${s.catalogSyncStatus === 'saving' ? `<p style="margin: 14px 0 0; font-size: 12.5px; color: var(--color-neutral-600)">שומר שינויים…</p>`
+        : s.catalogSyncStatus === 'saved' ? `<p style="margin: 14px 0 0; font-size: 12.5px; color: var(--color-accent-700)">נשמר — יופיע לכל המבקרים באתר תוך כדקה.</p>`
+        : s.catalogSyncStatus === 'error' ? `<p style="margin: 14px 0 0; font-size: 12.5px; color: #b3261e">${esc(s.catalogSyncError) || 'השמירה נכשלה, השינוי נשאר רק אצלך.'} <button class="btn btn-ghost" data-act="siteSave" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">לנסות שוב</button></p>`
+        : ''}
     </section>`;
   }
 

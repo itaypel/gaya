@@ -2,6 +2,25 @@ const { put, BlobPreconditionFailedError } = require('@vercel/blob');
 
 const MAX_BYTES = 200 * 1024;
 
+// Mirrors the SITE keys in js/data.js — an allowlist so this endpoint can
+// only ever overwrite known site-copy fields, never arbitrary keys.
+const SITE_KEYS = [
+  'heroKicker', 'heroTitle', 'heroBody', 'heroCta1',
+  'storyKicker', 'storyTitle', 'storyIntro', 'storyFounders', 'kokedamaQ', 'kokedamaA',
+  'beyondKicker', 'beyondTitle', 'beyondIntro',
+  'series1H', 'series1B', 'series2H', 'series2B', 'series3H', 'series3B',
+  'beyondClose', 'footer'
+];
+function sanitizeSite(input) {
+  const out = {};
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
+    for (const k of SITE_KEYS) {
+      if (typeof input[k] === 'string' && input[k].length <= 4000) out[k] = input[k];
+    }
+  }
+  return out;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method not allowed' });
@@ -47,7 +66,8 @@ module.exports = async (req, res) => {
     edits: (data.edits && typeof data.edits === 'object' && !Array.isArray(data.edits)) ? data.edits : {},
     removed: (data.removed && typeof data.removed === 'object' && !Array.isArray(data.removed)) ? data.removed : {},
     stock: (data.stock && typeof data.stock === 'object' && !Array.isArray(data.stock)) ? data.stock : {},
-    extra: Array.isArray(data.extra) ? data.extra : []
+    extra: Array.isArray(data.extra) ? data.extra : [],
+    site: sanitizeSite(data.site)
   };
 
   // Vercel Blob enforces a 60s minimum cache, so a read can be briefly stale —
