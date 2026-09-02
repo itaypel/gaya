@@ -896,14 +896,7 @@ class App {
             <span style="font-family: var(--font-heading); font-size: 26px; font-variant-numeric: tabular-nums">${this.fmt(subtotal + shipping)}</span>
           </div>
           <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">${subtotal === 0 ? 'משלוח חינם בהזמנה מעל 300 ₪.' : (pickup ? 'איסוף מהסטודיו ברחובות, בלי עלות משלוח.' : (freeShip ? 'המשלוח כלול בהזמנה.' : 'עוד ' + this.fmt(300 - subtotal) + ' למשלוח חינם.'))}</p>
-          <button class="btn btn-primary btn-block" data-act="goCheckout" style="min-height: 46px">לתשלום</button>
-          <div style="display: flex; align-items: center; gap: 10px; margin: 2px 0">
-            <hr class="hr" style="flex: 1; margin: 0"><span style="font-size: 11px; letter-spacing: 0.18em; color: var(--color-neutral-600)">או</span><hr class="hr" style="flex: 1; margin: 0">
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
-            <button class="btn btn-secondary" data-act="expressApple" style="gap: 6px; padding: 8px 10px; font-size: 13px">${ICON.appleSm}<span>Apple&nbsp;Pay</span></button>
-            <button class="btn btn-secondary" data-act="expressGoogle" style="gap: 6px; padding: 8px 10px; font-size: 13px">${ICON.googleSm}<span>Google&nbsp;Pay</span></button>
-          </div>
+          <button class="btn btn-primary btn-block" data-act="goCheckout" style="min-height: 46px">המשך להזמנה</button>
         </div>
       </div>
     </aside>`;
@@ -1112,57 +1105,28 @@ class App {
   // ── CHECKOUT ─────────────────────────────────────────────────────────
   renderCheckout() {
     const s = this.state;
-    const pickup = s.method === 'pickup';
     const subtotal = this.subtotal();
-    const freeShip = subtotal >= 300;
-    const shipping = subtotal === 0 || pickup || freeShip ? 0 : 39;
     const lines = Object.keys(s.cart).map((id) => {
       const p = this.catalog().find((x) => x.id === id);
       const qty = s.cart[id];
       return { name: p.name, qty, lineLabel: this.fmt(p.price * qty) };
     });
-    const methodNote = pickup
-      ? 'הסטודיו ברחובות, פתוח ראשון עד חמישי בין עשר לשש. נשלח הודעה כשההזמנה מוכנה לאיסוף.'
-      : 'שליח עד הבית, עד חמישה ימי עסקים, באריזת קרטון עם מגן שורשים. חינם מעל 300 ₪. משלוח זמין לערים באזור החלוקה בלבד — מאשקלון בדרום ועד נתניה בצפון.';
-    const payNote = 'האתר עדיין לא מחובר למערכת סליקה, ולכן לא נאסוף פרטי כרטיס אשראי כאן. נציג/ה יצור/תיצור איתך קשר לאחר קבלת הבקשה כדי לתאם את התשלום בפועל, לפי אמצעי התשלום שתבחר/י.';
-    const payCta = s.orderSubmitting ? 'שולח…' : 'שליחת בקשת ההזמנה';
+    // Checkout doesn't collect real payment yet (no סליקה set up) — routing
+    // straight to WhatsApp instead of the old order form avoids customers
+    // thinking they've completed a real purchase.
+    const waText = ['שלום! אשמח להזמין מ-GAYA:', '', ...lines.map((l) => `${l.name} × ${l.qty}`), '', `סה"כ: ${this.fmt(subtotal)}`, '', '(פרטי משלוח/איסוף ותשלום נתאם כאן)'].join('\n');
+    const waHref = 'https://wa.me/972507673034?text=' + encodeURIComponent(waText);
     return `
-    <div data-screen-label="לתשלום">
+    <div data-screen-label="סיום ההזמנה">
       <section style="padding: clamp(36px, 5vw, 56px) var(--pg) 90px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 64px; align-items: start">
-        <div style="display: flex; flex-direction: column; gap: 30px">
+        <div style="display: flex; flex-direction: column; gap: 22px">
           <div>
-            <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">תשלום</span>
-            <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; margin-top: 14px">פרטי ההזמנה</h1>
-            <p style="margin: 10px 0 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">שליחת הטופס היא בקשת הזמנה — נחזור אליך לתיאום תשלום ואספקה, ההזמנה עוד לא סופית.</p>
+            <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">סיום ההזמנה</span>
+            <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; margin-top: 14px">נשלים את זה יחד בוואטסאפ</h1>
+            <p style="margin: 10px 0 0; font-size: 15px; line-height: 1.85; color: var(--color-neutral-700)">האתר עדיין לא מחובר למערכת סליקה, ולכן לא ניתן להשלים כאן תשלום. לוחצים על הכפתור למטה — ההודעה תיפתח בוואטסאפ עם פרטי העגלה שלך כבר בפנים, ואנחנו נתאם איתך משלוח/איסוף ותשלום ישירות.</p>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 16px">
-            <h3 style="font-size: 20px; font-weight: 400">איך לקבל</h3>
-            <div style="display: flex; gap: 10px">
-              <button class="btn ${pickup ? 'btn-secondary' : 'btn-primary'}" data-act="pickShip">משלוח עד הבית</button>
-              <button class="btn ${pickup ? 'btn-primary' : 'btn-secondary'}" data-act="pickPickup">איסוף מהסטודיו ברחובות</button>
-            </div>
-            <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">${methodNote}</p>
-          </div>
-          <hr class="hr">
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 18px">
-            <div class="field"><label for="f-name">שם מלא</label><input class="input" id="f-name" placeholder="שם ושם משפחה"></div>
-            <div class="field"><label for="f-phone">טלפון</label><input class="input" id="f-phone" type="tel" placeholder="05X-0000000"></div>
-            <div class="field" style="grid-column: 1 / -1"><label for="f-email">דואר אלקטרוני</label><input class="input" id="f-email" type="email" placeholder="name@example.com"></div>
-            <div class="field" style="grid-column: 1 / -1"><label for="f-addr">כתובת למשלוח</label><input class="input" id="f-addr" placeholder="רחוב, מספר, דירה"></div>
-            <div class="field"><label for="f-city">עיר</label><input class="input" id="f-city" list="f-city-list" placeholder="הקלידו לבחירת עיר" autocomplete="off"><datalist id="f-city-list">${DELIVERY_CITIES.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
-            <div class="field"><label for="f-zip">מיקוד</label><input class="input" id="f-zip" placeholder="0000000"></div>
-            <div class="field" style="grid-column: 1 / -1"><label for="f-note">הערה לשליח או ברכה לצירוף</label><textarea class="input" id="f-note" placeholder="אופציונלי"></textarea></div>
-          </div>
-          <hr class="hr">
-          <div style="display: flex; flex-direction: column; gap: 16px">
-            <h3 style="font-size: 20px; font-weight: 400">אמצעי תשלום</h3>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap">
-              <button class="btn ${s.pay === 'card' ? 'btn-primary' : 'btn-secondary'}" data-act="payCard">כרטיס אשראי</button>
-              <button class="btn ${s.pay === 'apple' ? 'btn-primary' : 'btn-secondary'}" data-act="payApple" style="gap: 8px">${ICON.apple}<span>Apple&nbsp;Pay</span></button>
-              <button class="btn ${s.pay === 'google' ? 'btn-primary' : 'btn-secondary'}" data-act="payGoogle" style="gap: 8px">${ICON.google}<span>Google&nbsp;Pay</span></button>
-            </div>
-            <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">${payNote}</p>
-          </div>
+          <a class="btn btn-primary btn-block" href="${waHref}" target="_blank" rel="noopener noreferrer" style="min-height: 50px; gap: 10px; font-size: 16px">${ICON.whatsapp}<span>פנייה בוואטסאפ להשלמת ההזמנה</span></a>
+          <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">אפשר גם בטלפון: <a href="tel:0507673034" style="color: inherit">050-7673034</a></p>
         </div>
 
         <aside class="card" style="padding: clamp(20px, 3vw, 30px); gap: 18px; position: sticky; top: 100px">
@@ -1175,15 +1139,11 @@ class App {
             <span style="font-variant-numeric: tabular-nums; white-space: nowrap">${l.lineLabel}</span>
           </div>`).join('')}
           <hr class="hr" style="margin: 0">
-          <div style="display: flex; justify-content: space-between; font-size: 14px; color: var(--color-neutral-700)"><span>ביניים</span><span style="font-variant-numeric: tabular-nums">${this.fmt(subtotal)}</span></div>
-          <div style="display: flex; justify-content: space-between; font-size: 14px; color: var(--color-neutral-700)"><span>${pickup ? 'איסוף מהסטודיו' : 'משלוח'}</span><span style="font-variant-numeric: tabular-nums">${subtotal === 0 ? '—' : (pickup ? 'איסוף' : (freeShip ? 'חינם' : this.fmt(39)))}</span></div>
-          <div style="display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px; border-top: 1px solid var(--color-divider)">
-            <span style="font-size: 16px">לתשלום</span>
-            <span style="font-family: var(--font-heading); font-size: 28px; font-variant-numeric: tabular-nums">${this.fmt(subtotal + shipping)}</span>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px">
+            <span style="font-size: 16px">ביניים</span>
+            <span style="font-family: var(--font-heading); font-size: 28px; font-variant-numeric: tabular-nums">${this.fmt(subtotal)}</span>
           </div>
-          ${s.orderError ? `<p style="margin: 0; font-size: 13px; line-height: 1.7; color: var(--color-accent-700)">${esc(s.orderError)}</p>` : ''}
-          <button class="btn btn-primary btn-block" data-act="submitOrder" ${s.orderSubmitting ? 'disabled' : ''} style="min-height: 48px">${payCta}</button>
-          <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">כל כריכה נבדקת ביד לפני האריזה.</p>
+          <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">משלוח/איסוף נסגר בוואטסאפ. כל כריכה נבדקת ביד לפני האריזה.</p>
         </aside>
       </section>
     </div>`;
@@ -1252,7 +1212,7 @@ class App {
         <div style="display: flex; flex-direction: column; gap: 24px; font-size: 15.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">
           <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">כללי</h2><p style="margin: 0">האתר בבעלות בעלת האתר ומנוהל על ידה, ומשמש כחנות מקוונת לרכישת מוצרי הסטודיו על ידי ציבור הגולשים. תנאי מוקדם לכל טיפול בהזמנה הוא קבלת אישור חברת האשראי לעסקה. תקנון זה חל על כל רכישה באתר ומהווה חוזה מחייב בין הרוכש לבין בעלת האתר; רכישת מוצר או שירות באתר מהווה אישור לקריאתו ולהסכמה לתוכנו. לבעלת האתר שמורה הזכות הבלעדית לסרב להזמנה, לבטלה או למנוע שימוש מצרכן, לפי שיקול דעתה ובלי הודעה מוקדמת. כל מזמין מתחייב למסור פרטים מדויקים ואישיים בלבד. בעלת האתר רשאית לשנות תקנון זה בכל עת, לפי שיקול דעתה.</p></div>
           <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">פרטי העוסק</h2><p style="margin: 0">גאיה, מס׳ עוסק 300286986, כתובת: הדגניות 27, רחובות. טלפון: 050-7673034. דואר אלקטרוני: giljabes22@gmail.com.</p></div>
-          <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">מחירים ותשלום</h2><p style="margin: 0">כל המחירים באתר בשקלים חדשים וכוללים מע״מ כדין. הרכישה מתבצעת בכרטיס אשראי בלבד, ב־Apple Pay או ב־Google Pay, דרך ספק סליקה מאובטח; פרטי הכרטיס אינם נשמרים בשרתי האתר. ההזמנה תטופל רק לאחר אישור חברת האשראי לעסקה. לא אושרה העסקה — יקבל המזמין הודעה מתאימה להסדרת האישור; לא הוסדר האישור בתוך 7 ימים, רשאית בעלת האתר לראות בעסקה כמבוטלת, וכל הוצאה הכרוכה בביטול תחול על המזמין.</p></div>
+          <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">מחירים ותשלום</h2><p style="margin: 0">כל המחירים באתר בשקלים חדשים וכוללים מע״מ כדין. האתר אינו גובה תשלום במעמד ההזמנה — לאחר שליחת פרטי העגלה דרך וואטסאפ, ניצור איתך קשר לתיאום אמצעי התשלום, המשלוח או האיסוף. ההזמנה תיחשב סופית רק לאחר תיאום ואישור בפועל מול נציג/ת GAYA.</p></div>
           <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">ביצוע ההזמנה</h2><p style="margin: 0">על הלקוח למלא את מלוא פרטיו האישיים — שם מלא, כתובת, דואר אלקטרוני, טלפון ופרטי אמצעי התשלום — באופן ברור ומדויק, כתנאי מוקדם לביצוע הרכישה. יש לוודא שהפרטים נכונים לפני משלוח ההזמנה; שליחתה מהווה אישור לנכונותם. מסירת פרטים כוזבים עלולה להוות עבירה פלילית ולחשוף את המוסר לסעדים הנובעים מכך, פליליים או אזרחיים.</p></div>
           <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">אספקת המוצרים</h2><p style="margin: 0">התמונות באתר להמחשה בלבד. השלמת הרכישה מותנית בקיום המוצר במלאי בעת סיום ההזמנה. אם הצמח או הפרח המוזמן אינו בעונה, יסופק צמח מקביל; ואם המוצר אזל מהמלאי או שיש בעיה באספקתו, רשאית בעלת האתר להודיע על ביטול ההזמנה בתוך 72 שעות ממועד ההזמנה, בהודעת דואר אלקטרוני או בטלפון. בעלת האתר אינה אחראית למצבם של הצמחים לאחר האספקה — צמחים עלולים לנבול כתוצאה מהעדר טיפול מתאים או מחלוף הזמן בלבד, ואין בכך עילה להחזרתם. פרטי אזורי החלוקה, זמני האספקה ותנאי הנגישות מפורטים בעמוד <a href="#" data-act="goShipping">מדיניות המשלוחים</a>. בעלת האתר לא תהיה אחראית לאיחור באספקה שמקורו באי-תיאום מול הלקוח, במסירת כתובת שגויה או פרטים חסרים, בכוח עליון (ובכלל זה מלחמה, פעולות איבה, מצבי חירום או נזקי טבע) או בגורמים אחרים שאינם בשליטתה.</p></div>
           <div><h2 style="font-size: 21px; font-weight: 400; margin-bottom: 10px">ביטול עסקה והחזרות</h2><p style="margin: 0 0 14px">התברר כי הרוכש מוגבל באמצעים, שכרטיס האשראי שלו לא כובד, או שלא פעל להסדרת אישור העסקה — רשאית בעלת האתר לבטל את העסקה ולא תהא חייבת במסירת המוצר, מבלי לגרוע מזכותה לתבוע מהרוכש את התשלומים שהתחייב בהם. בעלת האתר שומרת לעצמה את הזכות להפסיק בכל עת את מכירתו של מוצר מסוים, לבטל מכירה או להפסיק את פעילות האתר כולה — ובכלל זה כאשר לא נקלטו פרטי האשראי או פרטי הרוכש במלואם, כאשר חברת האשראי לא אישרה את העסקה, כאשר הרוכש מוגבל באמצעים, או כאשר בוצעה עסקה שלא כדין.</p><p style="margin: 0">ביטול הזמנה על ידי הרוכש ייעשה בכתב בלבד, ויכלול את פרטיו, מספר תעודת הזהות ומספר ההזמנה או החשבונית. בוטלה ההזמנה לפני שנשלחה, לא יחויב הרוכש בדמי ביטול. מרבית מוצרי האתר — צמחים ופרחים — הם ״טובין פסידים״ כהגדרתם בחוק הגנת הצרכן, תשמ״א-1981, ולכן אינם ניתנים להחזרה או לביטול לאחר קבלתם, לרבות בשל נבילה או התכלות. במקרים החריגים שבהם המוצר אינו טובין פסיד ולא יוצר במיוחד עבור הרוכש בעקבות ההזמנה, ניתן לבטל את הרכישה בהודעה בכתב בתוך 14 יום מקבלתו, להחזירו שלם ובאריזתו המקורית למקום ניהול עסקיה של בעלת האתר, ולקבל החזר בניכוי דמי ביטול בשיעור של 5% ממחיר העסקה או 100 ₪, לפי הנמוך, בהתאם להוראות חוק הגנת הצרכן. דמי המשלוח ישולמו במלואם גם אם ההזמנה טרם התקבלה בפועל, כל עוד יצאה מבית העסק לחברת השילוח.</p></div>
