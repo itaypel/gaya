@@ -123,7 +123,7 @@ module.exports = async (req, res) => {
       const payload = JSON.stringify({
         title: 'הזמנה חדשה ב-GAYA',
         body: `${safeName} · ${fmt(storedOrder.total)}`,
-        url: '/',
+        url: '/#/admin/orders/' + orderId,
       });
       const dead = [];
       await Promise.all(subs.map(async (sub) => {

@@ -78,7 +78,7 @@ class App {
       screen: 'home', cat: 'kokedama', prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
       admTab: 'products', site: Object.assign({}, SITE),
-      ordFilter: 'all', ordOpenRef: null, ordActionError: '',
+      ordFilter: 'all', ordOpenRef: null, ordActionError: '', pendingOrderRef: null,
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
@@ -102,18 +102,26 @@ class App {
       const past = window.scrollY > 64;
       if (past !== this.state.scrolled) { this.state.scrolled = past; this.render(); }
     }, { passive: true });
-    window.addEventListener('popstate', () => {
+    // A push-notification click navigates an already-open tab via the
+    // service worker's Client.navigate(), which changes the hash without
+    // going through history back/forward — that fires 'hashchange', not
+    // 'popstate', so both are handled the same way here.
+    const onHashRoute = () => {
       const route = this.parseRoute(location.hash);
       if (!route) return;
       Object.assign(this.state, route);
       this.render();
       window.scrollTo(0, 0);
-    });
+      if (this.state.screen === 'admin' && this.state.admTab === 'orders') this.loadOrders();
+    };
+    window.addEventListener('popstate', onHashRoute);
+    window.addEventListener('hashchange', onHashRoute);
     const initialRoute = this.parseRoute(location.hash);
     if (initialRoute) Object.assign(this.state, initialRoute);
     const initialHash = this.routeFromState(this.state);
     if (initialHash && location.hash !== initialHash) history.replaceState(null, '', initialHash);
     this.render();
+    if (this.state.screen === 'admin' && this.state.admTab === 'orders') this.loadOrders();
     this._catalogLoadPromise = this.loadCatalogOverrides();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -194,6 +202,17 @@ class App {
     if (parts[0] === 'access') return { screen: 'access' };
     if (parts[0] === 'terms') return { screen: 'terms' };
     if (parts[0] === 'shipping') return { screen: 'shipping' };
+    if (parts[0] === 'admin' && parts[1] === 'orders' && parts[2]) {
+      // Deep link from a push notification — jump straight past the tab
+      // list into that order's detail. If the admin session already lapsed
+      // (sessionStorage cleared, fresh PWA launch), stash the ref and pick
+      // this back up right after the passcode gate succeeds.
+      let admAuthed = false;
+      try { admAuthed = sessionStorage.getItem('gaya_admin_ok') === '1'; } catch (e) {}
+      return admAuthed
+        ? { screen: 'admin', admTab: 'orders', ordOpenRef: parts[2] }
+        : { screen: 'adminGate', admPass: '', admGateError: false, pendingOrderRef: parts[2] };
+    }
     return { screen: 'home' };
   }
   nav(patch) {
@@ -566,7 +585,11 @@ class App {
   tryAdminGate() {
     if (this.state.admPass === ADMIN_GATE_PASSCODE) {
       try { sessionStorage.setItem('gaya_admin_ok', '1'); } catch (e) {}
-      this.nav({ screen: 'admin', admAuthed: true, admPass: '' });
+      const pendingRef = this.state.pendingOrderRef;
+      this.nav(pendingRef
+        ? { screen: 'admin', admAuthed: true, admPass: '', admTab: 'orders', ordOpenRef: pendingRef, pendingOrderRef: null }
+        : { screen: 'admin', admAuthed: true, admPass: '' });
+      if (pendingRef) this.loadOrders();
     } else {
       this.setState({ admGateError: true });
     }
@@ -1266,7 +1289,7 @@ class App {
       <div class="card" style="max-width: 360px; width: 100%; padding: clamp(24px, 4vw, 34px); gap: 18px">
         <span class="card-kicker">כניסת צוות</span>
         <h1 style="font-size: 24px; font-weight: 400">אזור ניהול</h1>
-        <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">המסך הזה מיועד לצוות GAYA בלבד. הזינו את קוד הצוות כדי להמשיך.</p>
+        <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">${s.pendingOrderRef ? 'המסך הזה מיועד לצוות GAYA בלבד. הזינו את קוד הצוות כדי לפתוח את ההזמנה.' : 'המסך הזה מיועד לצוות GAYA בלבד. הזינו את קוד הצוות כדי להמשיך.'}</p>
         <div class="field">
           <label for="adm-pass">קוד צוות</label>
           <input class="input" id="adm-pass" type="password" data-adm-pass="1" value="${esc(s.admPass)}" placeholder="••••••••" autocomplete="off">
