@@ -79,6 +79,7 @@ class App {
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
       admTab: 'products', site: Object.assign({}, SITE),
       ordFilter: 'all', ordOpenRef: null, ordActionError: '', pendingOrderRef: null,
+      tagSel: {},
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
@@ -452,6 +453,19 @@ class App {
       case 'admGoOrders': this.setState({ admTab: 'orders' }); this.loadOrders(); break;
       case 'enablePush': this.enablePushNotifications(); break;
       case 'admGoSite': this.setState({ admTab: 'site' }); break;
+      case 'admGoTags':
+        this.setState({ admTab: 'tags' });
+        this.loadQrLib().then(() => this.mountQrTags()).catch(() => {});
+        break;
+      case 'tagToggle': this.setState((st) => ({ tagSel: Object.assign({}, st.tagSel, { [id]: !this.tagSelected(id) }) })); break;
+      case 'tagSelectAll': this.setState({ tagSel: {} }); break;
+      case 'tagSelectNone': {
+        const none = {};
+        this.catalog().forEach((p) => { none[p.id] = false; });
+        this.setState({ tagSel: none });
+        break;
+      }
+      case 'tagPrint': window.print(); break;
       case 'admShowAll': this.setState({ admFilter: 'all' }); break;
       case 'admShowKok': this.setState({ admFilter: 'kok' }); break;
       case 'admShowHyd': this.setState({ admFilter: 'hyd' }); break;
@@ -582,6 +596,42 @@ class App {
     }
   }
 
+  // ── QR care tags ────────────────────────────────────────────────────
+  // The QR library is only ever needed on one admin tab, so it is fetched
+  // on first use instead of shipping with every customer page load. It is
+  // vendored rather than loaded from a CDN because the page CSP only
+  // allows same-origin scripts.
+  loadQrLib() {
+    if (window.QRCode) return Promise.resolve();
+    if (!this._qrLibPromise) {
+      this._qrLibPromise = new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = 'assets/vendor/qrcode.min.js';
+        el.onload = resolve;
+        el.onerror = () => { this._qrLibPromise = null; reject(new Error('qr lib failed')); };
+        document.head.appendChild(el);
+      });
+    }
+    return this._qrLibPromise;
+  }
+  tagSelected(id) { return this.state.tagSel[id] !== false; }
+  // render() replaces the whole tree, so every pass leaves empty mounts to
+  // refill — cheap enough for a couple dozen codes on an admin-only screen.
+  mountQrTags() {
+    if (!window.QRCode) return;
+    this.root.querySelectorAll('[data-qr-id]').forEach((el) => {
+      if (el.childElementCount > 0) return;
+      new window.QRCode(el, {
+        text: PRODUCT_URL_BASE + el.dataset.qrId,
+        width: 320,
+        height: 320,
+        colorDark: '#241f18',
+        colorLight: '#fdfcf8',
+        correctLevel: window.QRCode.CorrectLevel.M
+      });
+    });
+  }
+
   tryAdminGate() {
     if (this.state.admPass === ADMIN_GATE_PASSCODE) {
       try { sessionStorage.setItem('gaya_admin_ok', '1'); } catch (e) {}
@@ -633,6 +683,7 @@ class App {
     this.root.style.zoom = (s.font / 100);
     document.documentElement.style.filter = s.contrast ? 'contrast(1.35) saturate(1.1)' : 'none';
     this.root.setAttribute('data-a11y-links', s.links ? '1' : '0');
+    if (s.screen === 'admin' && s.admTab === 'tags') this.mountQrTags();
   }
 
   // Vercel Blob's CDN (and every visitor's own browser cache) can serve a
@@ -1325,6 +1376,7 @@ class App {
           <button class="btn ${s.admTab === 'products' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoProducts" style="gap: 8px">${ICON.bag}<span>מוצרים ומלאי</span></button>
           <button class="btn ${s.admTab === 'orders' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoOrders" style="gap: 8px">${ICON.calendar}<span>יומן הזמנות</span></button>
           <button class="btn ${s.admTab === 'site' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoSite" style="gap: 8px">${ICON.site}<span>ניהול האתר</span></button>
+          <button class="btn ${s.admTab === 'tags' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoTags" style="gap: 8px">${ICON.qr}<span>תגיות QR</span></button>
         </div>
         ${s.admTab === 'products' ? `
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); gap: 14px; padding-bottom: 26px; border-bottom: 1px solid var(--color-divider)">
@@ -1338,6 +1390,7 @@ class App {
       ${s.admTab === 'products' ? this.renderAdminProducts() : ''}
       ${s.admTab === 'orders' ? this.renderAdminOrders() : ''}
       ${s.admTab === 'site' ? this.renderAdminSite() : ''}
+      ${s.admTab === 'tags' ? this.renderAdminTags() : ''}
     </div>`;
   }
 
@@ -1533,6 +1586,61 @@ class App {
         : s.catalogSyncStatus === 'saved' ? `<p style="margin: 14px 0 0; font-size: 12.5px; color: var(--color-accent-700)">נשמר — יופיע לכל המבקרים באתר תוך כדקה.</p>`
         : s.catalogSyncStatus === 'error' ? `<p style="margin: 14px 0 0; font-size: 12.5px; color: #b3261e">${esc(s.catalogSyncError) || 'השמירה נכשלה, השינוי נשאר רק אצלך.'} <button class="btn btn-ghost" data-act="siteSave" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">לנסות שוב</button></p>`
         : ''}
+    </section>`;
+  }
+
+  // ── QR CARE TAGS ─────────────────────────────────────────────────────
+  renderAdminTags() {
+    const s = this.state;
+    const all = this.catalog();
+    const chosen = all.filter((p) => this.tagSelected(p.id));
+    const groups = [
+      { key: 'kokedama', label: 'קוקודמות', items: chosen.filter((p) => p.cat !== 'hydro') },
+      { key: 'hydro', label: 'הידרופוני', items: chosen.filter((p) => p.cat === 'hydro') }
+    ].filter((g) => g.items.length > 0);
+
+    const tag = (p) => `
+      <div class="qr-tag">
+        <input type="checkbox" class="qr-tag-check" data-act="tagToggle" data-id="${p.id}" checked aria-label="להסיר את ${esc(p.name)} מההדפסה">
+        <span class="qr-tag-brand">גאיה</span>
+        <div class="qr-tag-code" data-qr-id="${p.id}"></div>
+        <span class="qr-tag-name">${esc(p.name)}</span>
+      </div>`;
+
+    return `
+    <section style="padding: 0 var(--pg) 80px">
+      <div class="qr-screen-only" style="display: flex; flex-direction: column; gap: 18px; max-width: 760px; padding-bottom: 30px">
+        <p style="margin: 0; font-size: 15px; line-height: 1.85; text-align: justify; color: var(--color-neutral-800)">תגית לכל צמח, עם קוד שנפתח בעמוד המוצר שלו באתר — שם מופיעות הוראות האור וההשקיה. מסמנים אילו פריטים להדפיס, מדפיסים, וגוזרים לאורך הקווים. פריט חדש שנוסף לקטלוג מקבל תגית משלו אוטומטית.</p>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+          <span style="font-size: 13px; color: var(--color-neutral-700); font-variant-numeric: tabular-nums">${chosen.length} מתוך ${all.length} נבחרו להדפסה</span>
+          <button class="btn btn-secondary" data-act="tagSelectAll">בחירת הכל</button>
+          <button class="btn btn-secondary" data-act="tagSelectNone">ניקוי הבחירה</button>
+          <button class="btn btn-primary" data-act="tagPrint" style="margin-inline-start: auto" ${chosen.length === 0 ? 'disabled' : ''}>הדפסת התגיות</button>
+        </div>
+      </div>
+
+      ${all.length === 0 ? `<p style="margin: 0; font-size: 14px; color: var(--color-neutral-600)">אין עדיין פריטים בקטלוג.</p>` : ''}
+      ${chosen.length === 0 && all.length > 0 ? `<p class="qr-screen-only" style="margin: 0; font-size: 14px; color: var(--color-neutral-600)">לא נבחר אף פריט — אפשר לבחור הכל, או לסמן פריטים ברשימה שמתחת.</p>` : ''}
+
+      <div id="qr-print-sheet" style="display: flex; flex-direction: column; gap: 30px">
+        ${groups.map((g) => `
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <div class="qr-sheet-head" style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">
+            <h2 style="font-size: 18px; font-weight: 400">${g.label}</h2>
+            <span style="font-size: 12px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${g.items.length} תגיות</span>
+          </div>
+          <div class="qr-tag-grid">${g.items.map(tag).join('')}</div>
+        </div>`).join('')}
+      </div>
+
+      ${all.length > chosen.length ? `
+      <div class="qr-screen-only" style="display: flex; flex-direction: column; gap: 14px; padding-top: 34px; margin-top: 34px; border-top: 1px solid var(--color-divider)">
+        <h2 style="font-size: 16px; font-weight: 400; color: var(--color-neutral-700)">לא נבחרו להדפסה</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          ${all.filter((p) => !this.tagSelected(p.id)).map((p) => `
+          <button class="btn btn-secondary" data-act="tagToggle" data-id="${p.id}" style="font-size: 13px; gap: 7px">${ICON.plus15}<span>${esc(p.name)}</span></button>`).join('')}
+        </div>
+      </div>` : ''}
     </section>`;
   }
 

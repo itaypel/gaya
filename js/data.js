@@ -72,6 +72,10 @@ const CATALOG = [
   { id: 'p16', img: BLOB_IMG_BASE + 'p16.jpg', name: 'קוקודמה קלתאה אינסיגניס', price: 250, size: 'קטנה', light: 'צל חלקי', water: 'טבילה אחת לחמישה ימים', desc: 'עלים מנוקדים שנסגרים בלילה. צריכה לחות ומים בטמפרטורת החדר.' }
 ];
 
+// Printed QR care tags point here — absolute, since they are scanned from
+// paper with no page context to resolve a relative path against.
+const PRODUCT_URL_BASE = 'https://gayaplants.com/#/product/';
+
 const STORY_IMG_1 = BLOB_IMG_BASE + 'story1.jpg';
 const STORY_IMG_2 = BLOB_IMG_BASE + 'story2.jpg';
 const LOGO_IMG = 'assets/images/gaya-logo.png';

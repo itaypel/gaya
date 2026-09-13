@@ -162,12 +162,57 @@ textarea.input { min-height: 90px; resize: vertical; font-family: inherit; }
 /* — headings hierarchy carried by weight, not by mixing a serif in — */
 h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
 
+/* — QR care tags (admin) — */
+.qr-tag-grid { display: flex; flex-wrap: wrap; gap: 14px; }
+.qr-tag {
+  position: relative;
+  width: 172px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 12px 14px;
+  background: #fdfcf8;
+  border: 1px dashed var(--color-neutral-400);
+  break-inside: avoid;
+}
+.qr-tag-check { position: absolute; inset-inline-end: 7px; top: 7px; margin: 0; cursor: pointer; accent-color: var(--color-accent); }
+.qr-tag-brand { font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.3em; color: var(--color-accent); }
+.qr-tag-code { width: 112px; height: 112px; }
+.qr-tag-code canvas, .qr-tag-code img { width: 100% !important; height: 100% !important; display: block; }
+.qr-tag-name { font-family: var(--font-heading); font-size: 14px; line-height: 1.35; color: #241f18; text-align: center; }
+
+/* Printing from this tab prints only the tag sheet. Everything that is
+   neither the sheet, inside it, nor an ancestor of it is dropped from the
+   layout entirely — display:none rather than visibility:hidden, so no
+   collapsed header leaves a blank band at the top of page one. The ancestor
+   chain then gets its padding zeroed, otherwise the page gutters stack on
+   top of @page's margin and squeeze the last column off the sheet.
+   Every rule is gated on :has(#qr-print-sheet), which only matches while the
+   QR tab is open, so no other page's print output is affected. */
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body:has(#qr-print-sheet) { background: #fff !important; }
+  body:has(#qr-print-sheet) *:not(:has(#qr-print-sheet)):not(#qr-print-sheet):not(#qr-print-sheet *) { display: none !important; }
+  body:has(#qr-print-sheet) :has(#qr-print-sheet) { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  /* The two below live inside the sheet, so the rule above keeps them
+     visible — they are admin chrome, not part of a tag. */
+  .qr-tag-check, .qr-sheet-head { display: none !important; }
+  /* Own gutter, so tags never sit flush to the paper edge even if a driver
+     or dialog overrides @page's margin. */
+  #qr-print-sheet { display: flex; flex-direction: column; gap: 8mm; padding: 2mm !important; }
+  .qr-tag-grid { gap: 4mm; }
+  .qr-tag { width: 58mm; border-color: #999; }
+  .qr-tag-code { width: 32mm; height: 32mm; }
+}
+
 @media (max-width: 900px) {
   :root { --pg: 22px; --cart-w: min(384px, 86vw); --nav-display: none; --cart-pos: fixed; --cart-scrim: block; --cart-bar: block; --cart-bar-h: calc(68px + env(safe-area-inset-bottom)); --menu-btn-display: flex; --nav-drawer-display: block; --cart-btn-display: none; }
   [data-cart] { inset-inline-start: 0; z-index: 60; box-shadow: var(--shadow-lg); }
   :root { --a11y-b: 84px; --a11y-p: 140px; }
 }
 @media (max-width: 560px) {
+  .qr-tag { width: calc(50% - 7px); }
   :root { --pg: 16px; --logo-h: 34px; }
   :root { --cards: repeat(2, minmax(0, 1fr)); --cards-gap: 26px 12px; --rel: repeat(2, minmax(0, 1fr)); }
   :root { --hero-min-h: auto; --hero-gap: 22px; --hero-pad: 28px var(--pg) 36px; --hero-logo-w: clamp(200px, 58vw, 700px); }
