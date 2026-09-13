@@ -175,7 +175,13 @@ h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
   background: #fdfcf8;
   border: 1px dashed var(--color-neutral-400);
   break-inside: avoid;
+  cursor: pointer;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
 }
+.qr-tag:not(.is-off) { border-color: var(--color-accent); }
+.qr-tag.is-off { opacity: 0.4; }
+.qr-tag.is-off:hover { opacity: 0.7; }
+.qr-tag:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .qr-tag-check { position: absolute; inset-inline-end: 7px; top: 7px; margin: 0; cursor: pointer; accent-color: var(--color-accent); }
 .qr-tag-brand { font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.3em; color: var(--color-accent); }
 .qr-tag-code { width: 112px; height: 112px; }
@@ -198,11 +204,15 @@ h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
   /* The two below live inside the sheet, so the rule above keeps them
      visible — they are admin chrome, not part of a tag. */
   .qr-tag-check, .qr-sheet-head { display: none !important; }
+  /* Unticked tags, and any group left with none ticked, leave the sheet
+     entirely — otherwise an empty group still costs a gap of blank paper. */
+  .qr-tag.is-off { display: none !important; }
+  #qr-print-sheet > div:not(:has(.qr-tag:not(.is-off))) { display: none !important; }
   /* Own gutter, so tags never sit flush to the paper edge even if a driver
      or dialog overrides @page's margin. */
   #qr-print-sheet { display: flex; flex-direction: column; gap: 8mm; padding: 2mm !important; }
   .qr-tag-grid { gap: 4mm; }
-  .qr-tag { width: 58mm; border-color: #999; }
+  .qr-tag { width: 58mm; opacity: 1 !important; border-color: #999 !important; }
   .qr-tag-code { width: 32mm; height: 32mm; }
 }
 

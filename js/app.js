@@ -458,13 +458,13 @@ class App {
         this.loadQrLib().then(() => this.mountQrTags()).catch(() => {});
         break;
       case 'tagToggle': this.setState((st) => ({ tagSel: Object.assign({}, st.tagSel, { [id]: !this.tagSelected(id) }) })); break;
-      case 'tagSelectAll': this.setState({ tagSel: {} }); break;
-      case 'tagSelectNone': {
-        const none = {};
-        this.catalog().forEach((p) => { none[p.id] = false; });
-        this.setState({ tagSel: none });
+      case 'tagSelectAll': {
+        const all = {};
+        this.catalog().forEach((p) => { all[p.id] = true; });
+        this.setState({ tagSel: all });
         break;
       }
+      case 'tagSelectNone': this.setState({ tagSel: {} }); break;
       case 'tagPrint': window.print(); break;
       case 'admShowAll': this.setState({ admFilter: 'all' }); break;
       case 'admShowKok': this.setState({ admFilter: 'kok' }); break;
@@ -614,7 +614,7 @@ class App {
     }
     return this._qrLibPromise;
   }
-  tagSelected(id) { return this.state.tagSel[id] !== false; }
+  tagSelected(id) { return this.state.tagSel[id] === true; }
   // render() replaces the whole tree, so every pass leaves empty mounts to
   // refill — cheap enough for a couple dozen codes on an admin-only screen.
   mountQrTags() {
@@ -1591,56 +1591,52 @@ class App {
 
   // ── QR CARE TAGS ─────────────────────────────────────────────────────
   renderAdminTags() {
-    const s = this.state;
     const all = this.catalog();
-    const chosen = all.filter((p) => this.tagSelected(p.id));
+    const chosenCount = all.filter((p) => this.tagSelected(p.id)).length;
     const groups = [
-      { key: 'kokedama', label: 'קוקודמות', items: chosen.filter((p) => p.cat !== 'hydro') },
-      { key: 'hydro', label: 'הידרופוני', items: chosen.filter((p) => p.cat === 'hydro') }
+      { key: 'kokedama', label: 'קוקודמות', items: all.filter((p) => p.cat !== 'hydro') },
+      { key: 'hydro', label: 'הידרופוני', items: all.filter((p) => p.cat === 'hydro') }
     ].filter((g) => g.items.length > 0);
 
-    const tag = (p) => `
-      <div class="qr-tag">
-        <input type="checkbox" class="qr-tag-check" data-act="tagToggle" data-id="${p.id}" checked aria-label="להסיר את ${esc(p.name)} מההדפסה">
+    // Every tag stays on screen so there is something to pick from; the
+    // unpicked ones are dimmed here and dropped entirely from the print.
+    const tag = (p) => {
+      const on = this.tagSelected(p.id);
+      return `
+      <label class="qr-tag ${on ? '' : 'is-off'}">
+        <input type="checkbox" class="qr-tag-check" data-act="tagToggle" data-id="${p.id}" ${on ? 'checked' : ''} aria-label="${on ? 'להסיר את' : 'לסמן את'} ${esc(p.name)} ${on ? 'מההדפסה' : 'להדפסה'}">
         <span class="qr-tag-brand">גאיה</span>
-        <div class="qr-tag-code" data-qr-id="${p.id}"></div>
+        <span class="qr-tag-code" data-qr-id="${p.id}"></span>
         <span class="qr-tag-name">${esc(p.name)}</span>
-      </div>`;
+      </label>`;
+    };
 
     return `
     <section style="padding: 0 var(--pg) 80px">
       <div class="qr-screen-only" style="display: flex; flex-direction: column; gap: 18px; max-width: 760px; padding-bottom: 30px">
-        <p style="margin: 0; font-size: 15px; line-height: 1.85; text-align: justify; color: var(--color-neutral-800)">תגית לכל צמח, עם קוד שנפתח בעמוד המוצר שלו באתר — שם מופיעות הוראות האור וההשקיה. מסמנים אילו פריטים להדפיס, מדפיסים, וגוזרים לאורך הקווים. פריט חדש שנוסף לקטלוג מקבל תגית משלו אוטומטית.</p>
+        <p style="margin: 0; font-size: 15px; line-height: 1.85; text-align: justify; color: var(--color-neutral-800)">תגית לכל צמח, עם קוד שנפתח בעמוד המוצר שלו באתר — שם מופיעות הוראות האור וההשקיה. מסמנים את הפריטים שרוצים, מדפיסים, וגוזרים לאורך הקווים. יודפסו רק התגיות המסומנות. פריט חדש שנוסף לקטלוג מקבל תגית משלו אוטומטית.</p>
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
-          <span style="font-size: 13px; color: var(--color-neutral-700); font-variant-numeric: tabular-nums">${chosen.length} מתוך ${all.length} נבחרו להדפסה</span>
-          <button class="btn btn-secondary" data-act="tagSelectAll">בחירת הכל</button>
-          <button class="btn btn-secondary" data-act="tagSelectNone">ניקוי הבחירה</button>
-          <button class="btn btn-primary" data-act="tagPrint" style="margin-inline-start: auto" ${chosen.length === 0 ? 'disabled' : ''}>הדפסת התגיות</button>
+          <span style="font-size: 13px; color: ${chosenCount ? 'var(--color-accent-700)' : 'var(--color-neutral-600)'}; font-variant-numeric: tabular-nums">${chosenCount ? chosenCount + ' מתוך ' + all.length + ' מסומנים להדפסה' : 'לא סומן אף פריט — סמנו תגיות כדי להדפיס'}</span>
+          <button class="btn btn-secondary" data-act="tagSelectAll">סימון הכל</button>
+          <button class="btn btn-secondary" data-act="tagSelectNone" ${chosenCount === 0 ? 'disabled' : ''}>ניקוי הסימון</button>
+          <button class="btn btn-primary" data-act="tagPrint" style="margin-inline-start: auto" ${chosenCount === 0 ? 'disabled' : ''}>הדפסת המסומנות</button>
         </div>
       </div>
 
       ${all.length === 0 ? `<p style="margin: 0; font-size: 14px; color: var(--color-neutral-600)">אין עדיין פריטים בקטלוג.</p>` : ''}
-      ${chosen.length === 0 && all.length > 0 ? `<p class="qr-screen-only" style="margin: 0; font-size: 14px; color: var(--color-neutral-600)">לא נבחר אף פריט — אפשר לבחור הכל, או לסמן פריטים ברשימה שמתחת.</p>` : ''}
 
       <div id="qr-print-sheet" style="display: flex; flex-direction: column; gap: 30px">
-        ${groups.map((g) => `
+        ${groups.map((g) => {
+          const on = g.items.filter((p) => this.tagSelected(p.id)).length;
+          return `
         <div style="display: flex; flex-direction: column; gap: 16px">
           <div class="qr-sheet-head" style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">
             <h2 style="font-size: 18px; font-weight: 400">${g.label}</h2>
-            <span style="font-size: 12px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${g.items.length} תגיות</span>
+            <span style="font-size: 12px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${on} מתוך ${g.items.length} מסומנים</span>
           </div>
           <div class="qr-tag-grid">${g.items.map(tag).join('')}</div>
-        </div>`).join('')}
+        </div>`; }).join('')}
       </div>
-
-      ${all.length > chosen.length ? `
-      <div class="qr-screen-only" style="display: flex; flex-direction: column; gap: 14px; padding-top: 34px; margin-top: 34px; border-top: 1px solid var(--color-divider)">
-        <h2 style="font-size: 16px; font-weight: 400; color: var(--color-neutral-700)">לא נבחרו להדפסה</h2>
-        <div style="display: flex; flex-wrap: wrap; gap: 8px">
-          ${all.filter((p) => !this.tagSelected(p.id)).map((p) => `
-          <button class="btn btn-secondary" data-act="tagToggle" data-id="${p.id}" style="font-size: 13px; gap: 7px">${ICON.plus15}<span>${esc(p.name)}</span></button>`).join('')}
-        </div>
-      </div>` : ''}
     </section>`;
   }
 
