@@ -82,6 +82,7 @@ class App {
       tagSel: {},
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
+      nfImgPos: '50% 50%', nfImgFit: 'cover',
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
       orders: [], ordersStatus: 'idle', ordersError: '', imgBusts: {},
@@ -92,6 +93,7 @@ class App {
     this._fadeT = null;
     root.addEventListener('click', (e) => this.handleClick(e));
     root.addEventListener('change', (e) => this.handleChange(e));
+    root.addEventListener('pointerdown', (e) => this.handleImgDragStart(e));
     root.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && e.target.dataset.admPass) {
         e.preventDefault();
@@ -306,7 +308,8 @@ class App {
       nf: { name: p.name, price: String(p.price), stock: String(this.stockOf(id)),
             cat: p.cat === 'hydro' ? 'hydro' : 'kokedama',
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
-      nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null
+      nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
+      nfImgPos: this.imgPosOf(p), nfImgFit: this.imgFitOf(p)
     });
   }
   saveEdit() {
@@ -317,7 +320,8 @@ class App {
       name, price: Number(nf.price) || 0,
       cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       size: (nf.size || '').trim(), light: (nf.light || '').trim(),
-      water: (nf.water || '').trim(), desc: (nf.desc || '').trim()
+      water: (nf.water || '').trim(), desc: (nf.desc || '').trim(),
+      imgPos: this.state.nfImgPos, imgFit: this.state.nfImgFit
     };
     // A product that never had a photo (img: '' in its base catalog entry)
     // needs its edits.img set explicitly here, or the upload succeeds but
@@ -331,6 +335,46 @@ class App {
       admForm: false, editId: null, nf: this.blankNf()
     }));
     this.persistCatalog();
+  }
+  // A 3D model takes priority over the photo on the product page, so a
+  // product shipped with one can't be switched to a photo from the panel
+  // without this.
+  dropModel() {
+    const id = this.state.editId;
+    if (!id) return;
+    this.setState((st) => ({
+      edits: Object.assign({}, st.edits, { [id]: Object.assign({}, st.edits[id], { model: '', embed: '' }) })
+    }));
+    this.persistCatalog();
+  }
+  // Drag the photo inside its frame to choose what stays visible. The
+  // position is written straight to the element while dragging and only
+  // committed to state on release — a re-render mid-drag would replace the
+  // very node being dragged.
+  handleImgDragStart(e) {
+    const frame = e.target.closest('[data-img-frame]');
+    if (!frame || this.state.nfImgFit === 'contain') return;
+    const img = frame.querySelector('img');
+    if (!img) return;
+    e.preventDefault();
+    const rect = frame.getBoundingClientRect();
+    const start = this.imgPosOf({ imgPos: this.state.nfImgPos }).split(' ').map((v) => parseFloat(v) || 0);
+    let next = start;
+    const clamp = (v) => Math.max(0, Math.min(100, v));
+    const move = (ev) => {
+      next = [
+        clamp(start[0] - ((ev.clientX - e.clientX) / rect.width) * 100),
+        clamp(start[1] - ((ev.clientY - e.clientY) / rect.height) * 100)
+      ];
+      img.style.objectPosition = next[0].toFixed(1) + '% ' + next[1].toFixed(1) + '%';
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      this.setState({ nfImgPos: next[0].toFixed(1) + '% ' + next[1].toFixed(1) + '%' });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   }
   removeProduct() {
     const id = this.state.editId;
@@ -359,7 +403,8 @@ class App {
     const id = this.state.nfNewId || ('x' + (this.state.extra.length + 1));
     const hasImg = this.state.nfImgStatus === 'done';
     const item = {
-      id, img: hasImg ? (BLOB_IMG_BASE + id + '.jpg') : '', imgV: hasImg ? Date.now() : undefined, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
+      id, img: hasImg ? (BLOB_IMG_BASE + id + '.jpg') : '', imgV: hasImg ? Date.now() : undefined,
+      imgPos: this.state.nfImgPos, imgFit: this.state.nfImgFit, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       name, price: Number(nf.price) || 0,
       size: (nf.size || '').trim() || 'בינונית',
       light: (nf.light || '').trim() || 'אור עקיף בהיר',
@@ -474,8 +519,12 @@ class App {
       case 'admEdit': this.openEditor(id); break;
       case 'admInc': this.bumpStock(id, 1); break;
       case 'admDec': this.bumpStock(id, -1); break;
-      case 'admOpenNew': this.setState((st) => ({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: 'x' + (st.extra.length + 1) })); break;
-      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null }); break;
+      case 'admOpenNew': this.setState((st) => ({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfImgPos: '50% 50%', nfImgFit: 'cover', nfNewId: 'x' + (st.extra.length + 1) })); break;
+      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfImgPos: '50% 50%', nfImgFit: 'cover', nfNewId: null }); break;
+      case 'nfFitCover': this.setState({ nfImgFit: 'cover' }); break;
+      case 'nfFitContain': this.setState({ nfImgFit: 'contain' }); break;
+      case 'nfPosCenter': this.setState({ nfImgPos: '50% 50%' }); break;
+      case 'nfDropModel': this.dropModel(); break;
       case 'nfSetKok': this.setNf('cat', 'kokedama'); break;
       case 'nfSetHyd': this.setNf('cat', 'hydro'); break;
       case 'nfSave': (s.editId ? this.saveEdit() : this.saveNf()); break;
@@ -614,6 +663,22 @@ class App {
     }
     return this._qrLibPromise;
   }
+  // model-viewer is a megabyte of library. No product ships with a 3D model
+  // now, so it is fetched only if one ever shows up again rather than on
+  // every customer's first paint.
+  loadModelViewer() {
+    if (!this._mvPromise) {
+      this._mvPromise = new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.type = 'module';
+        el.src = 'js/vendor/model-viewer.min.js';
+        el.onload = resolve;
+        el.onerror = () => { this._mvPromise = null; reject(new Error('model-viewer failed')); };
+        document.head.appendChild(el);
+      });
+    }
+    return this._mvPromise;
+  }
   tagSelected(id) { return this.state.tagSel[id] === true; }
   // render() replaces the whole tree, so every pass leaves empty mounts to
   // refill — cheap enough for a couple dozen codes on an admin-only screen.
@@ -694,6 +759,12 @@ class App {
   // imgBusts is a same-tick fallback for the instant after upload, before
   // the edit's imgV has made it into a render pass.
   bustFor(id) { return this.state.imgBusts[id] || 0; }
+  // Photos are shot at whatever aspect the phone gives; the frames on site
+  // are 4:5. Rather than crop the file, each product carries how its photo
+  // should sit in that frame — fill and pan, or show whole.
+  imgFitOf(p) { return p.imgFit === 'contain' ? 'contain' : 'cover'; }
+  imgPosOf(p) { return (typeof p.imgPos === 'string' && p.imgPos) ? p.imgPos : '50% 50%'; }
+  imgBgStyle(p) { return `background-size: ${this.imgFitOf(p)}; background-position: ${this.imgPosOf(p)}; background-repeat: no-repeat`; }
   // ── shared: product tile ────────────────────────────────────────────
   shape(p) {
     const stock = this.stockOf(p.id);
@@ -701,6 +772,7 @@ class App {
     return {
       id: p.id, name: p.name, size: p.size, desc: p.desc,
       bg: p.img ? `url('${p.img}${bust ? '?v=' + bust : ''}')` : 'none',
+      bgFraming: this.imgBgStyle(p),
       has3d: !!p.embed || !!p.model, noPhoto: !p.img && !p.embed && !p.model,
       stockLabel: stock === 0 ? 'לא זמין' : (stock <= 2 ? 'יחידות אחרונות' : 'זמין במלאי'),
       stockTag: stock === 0 ? 'tag-outline' : (stock <= 2 ? 'tag-accent' : 'tag-neutral'),
@@ -712,7 +784,7 @@ class App {
     const sh = this.shape(p);
     return `
       <article style="display: flex; flex-direction: column; gap: ${featured ? '14px' : '13px'}; min-width: 0">
-        <div data-act="open" data-id="${p.id}" class="plate" role="img" aria-label="${esc(p.name)}" style="position: relative; aspect-ratio: 4/5; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${sh.bg}; background-size: cover; background-position: center">
+        <div data-act="open" data-id="${p.id}" class="plate" role="img" aria-label="${esc(p.name)}" style="position: relative; aspect-ratio: 4/5; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${sh.bg}; ${sh.bgFraming}">
           ${sh.has3d ? `<span style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--color-neutral-800)">${ICON.cube}<span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em">מודל תלת־ממדי</span></span>` : ''}
           ${sh.noPhoto ? `<span style="position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>` : ''}
         </div>
@@ -1101,6 +1173,7 @@ class App {
     const related = relPool.slice()
       .sort((a, b) => (a.water === prod.water ? 0 : 1) - (b.water === prod.water ? 0 : 1))
       .slice(0, 3);
+    if (prod.model) this.loadModelViewer().catch(() => {});
     const desc = prod.desc + (prod.cat === 'hydro'
       ? ' הצמח מגיע בכלי זכוכית עם רשת שורשים ואבני חלוקים. מחליפים מים כל שבועיים ומוסיפים שתי טיפות תמיסת מזון, ומשאירים את שליש השורשים העליון חשוף לאוויר.'
       : ' הכריכה נעשית ביד בכרית קוקוס וטחב ספגנום, בקוטר המתאים לגודל הצמח, וקשורה בחוט כותנה. משקים בטבילה, בלי אדמה ובלי עציץ.');
@@ -1125,7 +1198,7 @@ class App {
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : `
           <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
-            ${prod.img ? `<img src="${prod.img}${(prod.imgV || this.bustFor(prod.id)) ? '?v=' + (prod.imgV || this.bustFor(prod.id)) : ''}" alt="${esc(prod.name)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
+            ${prod.img ? `<img src="${prod.img}${(prod.imgV || this.bustFor(prod.id)) ? '?v=' + (prod.imgV || this.bustFor(prod.id)) : ''}" alt="${esc(prod.name)}" style="object-fit: ${this.imgFitOf(prod)}; object-position: ${this.imgPosOf(prod)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
           </div>`}
         </div>
 
@@ -1161,7 +1234,7 @@ class App {
             <div style="display: grid; grid-template-columns: var(--rel, repeat(3, minmax(0, 1fr))); gap: 14px">
               ${related.map((r) => `
               <article style="display: flex; flex-direction: column; gap: 9px; min-width: 0">
-                <div data-act="open" data-id="${r.id}" class="plate" role="img" aria-label="${esc(r.name)}" style="position: relative; aspect-ratio: 1; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${r.img ? `url('${r.img}')` : 'none'}; background-size: cover; background-position: center">
+                <div data-act="open" data-id="${r.id}" class="plate" role="img" aria-label="${esc(r.name)}" style="position: relative; aspect-ratio: 1; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${r.img ? `url('${r.img}${r.imgV ? '?v=' + r.imgV : ''}')` : 'none'}; ${this.imgBgStyle(r)}">
                   ${!r.img && !r.embed && !r.model ? `<span style="position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.2em; color: var(--color-neutral-800)">בצילום</span>` : ''}
                   ${r.embed || r.model ? `<span style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--color-neutral-800)">${ICON.cubeSm}<span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.18em">תלת־ממד</span></span>` : ''}
                 </div>
@@ -1462,7 +1535,7 @@ class App {
             return `
           <tr>
             <td><span style="display: flex; align-items: center; gap: 12px">
-              <span role="img" aria-label="${esc(p.name)}" style="position: relative; width: 40px; height: 50px; flex: 0 0 auto; border: 1px solid var(--color-divider); background-color: var(--color-neutral-200); background-image: ${p.img ? `url('${p.img}${p.imgV ? '?v=' + p.imgV : ''}')` : 'none'}; background-size: cover; background-position: center; display: block"></span>
+              <span role="img" aria-label="${esc(p.name)}" style="position: relative; width: 40px; height: 50px; flex: 0 0 auto; border: 1px solid var(--color-divider); background-color: var(--color-neutral-200); background-image: ${p.img ? `url('${p.img}${p.imgV ? '?v=' + p.imgV : ''}')` : 'none'}; ${this.imgBgStyle(p)}; display: block"></span>
               <span>
                 <button data-act="admEdit" data-id="${p.id}" style="background: none; border: 0; padding: 0; font-family: var(--font-body); font-size: inherit; color: inherit; cursor: pointer; text-align: start; text-decoration: underline; text-decoration-color: var(--color-neutral-400)">${esc(p.name)}</button>
                 ${p.isNew ? `<span class="tag tag-accent" style="margin-inline-start: 8px">חדש</span>` : ''}
@@ -1673,8 +1746,8 @@ class App {
           <div class="field" style="grid-column: 1 / -1"><label for="a-desc">תיאור</label><textarea class="input" id="a-desc" data-nf-field="desc" placeholder="שתי שורות על הצמח ועל הטיפול בו">${esc(nf.desc)}</textarea></div>
         </div>
         <div style="display: grid; grid-template-columns: 132px 1fr; gap: 18px; align-items: start">
-          <div class="plate" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; background: var(--color-neutral-200)">
-            ${imgSrc ? `<img src="${esc(imgSrc)}" alt="" style="width: 100%; height: 100%; object-fit: cover; display: block">` : `<div style="width: 100%; height: 100%; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.18em; color: var(--color-neutral-800)">תמונה</div>`}
+          <div class="plate" data-img-frame="1" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; background: var(--color-neutral-200); ${imgSrc && s.nfImgFit !== 'contain' ? 'cursor: grab; touch-action: none' : ''}">
+            ${imgSrc ? `<img src="${esc(imgSrc)}" alt="" draggable="false" style="width: 100%; height: 100%; object-fit: ${s.nfImgFit}; object-position: ${s.nfImgPos}; display: block; user-select: none; -webkit-user-drag: none">` : `<div style="width: 100%; height: 100%; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.18em; color: var(--color-neutral-800)">תמונה</div>`}
           </div>
           <div style="display: flex; flex-direction: column; gap: 10px">
             ${uploadTargetId ? `
@@ -1682,8 +1755,24 @@ class App {
             <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-nf-img-file="1" style="display: none">
             ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה הועלתה — אחרי לחיצה על "שמירה" היא תופיע מיד באתר החי, לכל המבקרים.' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
             ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.nfImgError)}</p>` : ''}
+            ${imgSrc ? `
+            <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 4px">
+              <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent)">איך התמונה יושבת במסגרת</span>
+              <div class="seg" style="align-self: flex-start">
+                <button class="seg-opt" data-act="nfFitCover" aria-pressed="${s.nfImgFit !== 'contain'}" style="background: ${s.nfImgFit !== 'contain' ? 'var(--color-accent-100)' : 'transparent'}; color: ${s.nfImgFit !== 'contain' ? 'var(--color-accent-800)' : 'var(--color-text)'}">ממלאת את המסגרת</button>
+                <button class="seg-opt" data-act="nfFitContain" aria-pressed="${s.nfImgFit === 'contain'}" style="background: ${s.nfImgFit === 'contain' ? 'var(--color-accent-100)' : 'transparent'}; color: ${s.nfImgFit === 'contain' ? 'var(--color-accent-800)' : 'var(--color-text)'}">התמונה כולה</button>
+              </div>
+              ${s.nfImgFit === 'contain'
+                ? `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">התמונה תוצג במלואה, בלי חיתוך. השוליים שנשארים יתמלאו ברקע.</p>`
+                : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">גוררים את התמונה בתצוגה המקדימה כדי לבחור איזה חלק שלה יישאר בתוך המסגרת. <button class="btn btn-ghost" data-act="nfPosCenter" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">מרכוז</button></p>`}
+            </div>` : ''}
             <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG, WEBP או תמונת אייפון (HEIC) — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
             ` : ''}
+            ${editingProd && (editingProd.model || editingProd.embed) ? `
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--color-divider)">
+              <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-700)">במוצר הזה מוצג מודל תלת־ממדי במקום התמונה. אחרי הסרתו תוצג התמונה שהעליתם.</p>
+              <button class="btn btn-secondary" data-act="nfDropModel" style="align-self: flex-start">הסרת המודל התלת־ממדי</button>
+            </div>` : ''}
           </div>
         </div>
       </div>

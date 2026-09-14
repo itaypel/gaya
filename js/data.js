@@ -51,7 +51,7 @@ const BLOB_IMG_BASE = 'https://n5mm0fqiav7j7uht.public.blob.vercel-storage.com/p
 const BLOB_DATA_URL = 'https://n5mm0fqiav7j7uht.public.blob.vercel-storage.com/data/catalog.json';
 
 const CATALOG = [
-  { id: 'p1', img: '', model: 'assets/models/kokedama-briki-chiton.glb', name: 'קוקודמה בריכיכיטון', price: 270, size: 'בינונית', light: 'אור עקיף בהיר', water: 'טבילה אחת לשבוע', desc: 'עלים דמויי קרן איל, גדלים כלפי חוץ. הצמח שנראה הכי טוב תלוי מהתקרה.' },
+  { id: 'p1', img: '', name: 'קוקודמה בריכיכיטון', price: 270, size: 'בינונית', light: 'אור עקיף בהיר', water: 'טבילה אחת לשבוע', desc: 'עלים דמויי קרן איל, גדלים כלפי חוץ. הצמח שנראה הכי טוב תלוי מהתקרה.' },
   { id: 'p2', img: BLOB_IMG_BASE + 'p2.jpg', name: 'קוקודמה דרצנה גולדן', price: 250, size: 'בינונית', light: 'אור עקיף בינוני', water: 'טבילה אחת לשבוע', desc: 'פס זהוב לאורך העלה הצר. עומדת זקופה ומתאימה למדף גבוה.' },
   { id: 'p3', img: BLOB_IMG_BASE + 'p3.jpg', name: 'קוקודמה דרצנה מרגינטה', price: 250, size: 'בינונית', light: 'אור עקיף בינוני', water: 'טבילה אחת לשבוע', desc: 'עלים דקים בשוליים אדמדמים. סלחנית במיוחד למי ששוכח להשקות.' },
   { id: 'p4', img: BLOB_IMG_BASE + 'p4.jpg', name: 'קוקודמה שרך קן ציפור', price: 250, size: 'בינונית', light: 'צל חלקי', water: 'טבילה אחת לחמישה ימים', desc: 'רוזטת עלים גליים בהירים. אוהבת לחות, משגשגת באמבטיה עם חלון.' },
