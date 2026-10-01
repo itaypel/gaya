@@ -63,16 +63,18 @@ module.exports = async (req, res) => {
     }
   }
 
+  // Gallery photos get a fresh, never-reused name per upload, so they can be
+  // cached for a year — a new photo is a new URL, nothing can go stale.
+  // Story images still overwrite their fixed path, which the page references
+  // by name; those keep the 60s floor so a replacement shows within a minute.
+  const unique = req.query.unique === '1';
   try {
     const blob = await put(`products/${id}.jpg`, outBuffer, {
       access: 'public',
-      addRandomSuffix: false,
-      allowOverwrite: true,
+      addRandomSuffix: unique,
+      allowOverwrite: !unique,
       contentType: 'image/jpeg',
-      // Vercel Blob enforces a 60s platform minimum here — this is that floor,
-      // not a choice. A higher value (300s was here before) directly extends
-      // how long an edited product can keep showing its old image.
-      cacheControlMaxAge: 60,
+      cacheControlMaxAge: unique ? 31536000 : 60,
       token: process.env.PRODUCTS_BLOB_TOKEN,
     });
     res.status(200).json({ url: blob.url });

@@ -6,6 +6,8 @@ const SITE = {
   heroTitle: 'קוקודמות וצמחי בוטיק',
   heroBody: 'צמחים ששורשיהם עטופים בכדורי טחב מיובשים, שזורים בעבודת יד, המרחפים על אלמנטים מברזל.',
   heroCta1: 'לקטלוג',
+  careTitle: 'בחרו את הצמח שלכם',
+  careSub: 'מדריך לטיפול המלא מחכה לכם בפנים',
   storyKicker: 'הסטודיו',
   storyTitle: 'הכירו את GAYA – הטבע שנכנס אליכם הביתה',
   storyIntro: 'ברוכים הבאים ל-GAYA, הסטודיו שלנו ברחובות, המקום שבו האהבה העמוקה לצמחים פוגשת אומנות ועיצוב.',
@@ -27,6 +29,7 @@ const SITE = {
 
 const SITE_FIELDS = [
   { group: 'תמונת נושא בדף הבית', keys: [['heroKicker', 'כיתוב עליון', 'line'], ['heroTitle', 'כותרת ראשית', 'area'], ['heroBody', 'פסקת פתיחה', 'area'], ['heroCta1', 'כפתור', 'line']] },
+  { group: 'מדריך הטיפול בדף הבית', keys: [['careTitle', 'כותרת', 'line'], ['careSub', 'שורה שנייה', 'line']] },
   { group: 'הסיפור של העסק', keys: [['storyKicker', 'כיתוב עליון', 'line'], ['storyTitle', 'כותרת', 'area'], ['storyIntro', 'פסקת פתיחה', 'area'], ['storyFounders', 'על גיל ושירן', 'area'], ['kokedamaQ', 'כותרת ההסבר', 'line'], ['kokedamaA', 'מה זה קוקודמה', 'area']] },
   { group: 'מעבר לקוקודמה', keys: [['beyondKicker', 'כיתוב עליון', 'line'], ['beyondTitle', 'כותרת', 'line'], ['beyondIntro', 'פסקת פתיחה', 'area'], ['series1H', 'סדרה ראשונה — שם', 'line'], ['series1B', 'סדרה ראשונה — תיאור', 'area'], ['series2H', 'סדרה שנייה — שם', 'line'], ['series2B', 'סדרה שנייה — תיאור', 'area'], ['series3H', 'סדרה שלישית — שם', 'line'], ['series3B', 'סדרה שלישית — תיאור', 'area'], ['beyondClose', 'שורת סיום', 'area']] },
   { group: 'פוטר', keys: [['footer', 'שורת פרטי העסק', 'area']] }
@@ -75,6 +78,15 @@ const CATALOG = [
 // Printed QR care tags point here — absolute, since they are scanned from
 // paper with no page context to resolve a relative path against.
 const PRODUCT_URL_BASE = 'https://gayaplants.com/#/product/';
+
+// Stand sizes a customer can pick on a product page. Managed from the admin
+// panel; these are only the starting set until the first save there.
+// price is an add-on in shekels on top of the plant's own price (0 = none).
+const STANDS_DEFAULT = [
+  { id: 's1', label: 'קטן', price: 0 },
+  { id: 's2', label: 'בינוני', price: 0 },
+  { id: 's3', label: 'גדול', price: 0 }
+];
 
 const STORY_IMG_1 = BLOB_IMG_BASE + 'story1.jpg';
 const STORY_IMG_2 = BLOB_IMG_BASE + 'story2.jpg';

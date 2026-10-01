@@ -81,11 +81,12 @@ class App {
       ordFilter: 'all', ordOpenRef: null, ordActionError: '', pendingOrderRef: null,
       tagSel: {},
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
-      nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
-      nfImgPos: '50% 50%', nfImgFit: 'cover',
+      nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfNewId: null, nfStands: null,
+      nfImages: [], nfImgSel: 0, nfImgProgress: null,
+      prodImg: 0, prodStand: null, stands: STANDS_DEFAULT.map((x) => Object.assign({}, x)),
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
-      orders: [], ordersStatus: 'idle', ordersError: '', imgBusts: {},
+      orders: [], ordersStatus: 'idle', ordersError: '',
       pushStatus: 'idle', pushError: '',
       storyImgStatus1: 'idle', storyImgError1: '', storyImgBust1: 0,
       storyImgStatus2: 'idle', storyImgError2: '', storyImgBust2: 0
@@ -148,7 +149,8 @@ class App {
         removed: (data.removed && typeof data.removed === 'object') ? data.removed : {},
         stock: Object.assign({}, STOCK, (data.stock && typeof data.stock === 'object') ? data.stock : {}),
         extra: Array.isArray(data.extra) ? data.extra : [],
-        site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {})
+        site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {}),
+        stands: Array.isArray(data.stands) ? data.stands : STANDS_DEFAULT.map((x) => Object.assign({}, x))
       });
     } catch (e) {
       // offline or blocked — visitors still see the last-deployed catalog
@@ -160,7 +162,7 @@ class App {
     // snapshot and silently undo changes saved from another session.
     if (this._catalogLoadPromise) { await this._catalogLoadPromise; this._catalogLoadPromise = null; }
     this.setState({ catalogSyncStatus: 'saving' });
-    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site };
+    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site, stands: this.state.stands };
     try {
       const headers = { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE };
       if (this._catalogEtag) headers['X-Catalog-Etag'] = this._catalogEtag;
@@ -200,7 +202,7 @@ class App {
     const parts = String(hash || '').replace(/^#\/?/, '').split('/').filter(Boolean).map((p) => decodeURIComponent(p));
     if (parts.length === 0) return { screen: 'home' };
     if (parts[0] === 'category') return { screen: 'category', cat: parts[1] === 'hydro' ? 'hydro' : 'kokedama' };
-    if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1] };
+    if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1], prodImg: 0, prodStand: null };
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
     if (parts[0] === 'terms') return { screen: 'terms' };
@@ -230,7 +232,20 @@ class App {
     const { edits, removed } = this.state;
     return CATALOG.concat(this.state.extra)
       .filter((p) => !removed[p.id])
-      .map((p) => (edits[p.id] ? Object.assign({}, p, edits[p.id]) : p));
+      .map((p) => (edits[p.id] ? Object.assign({}, p, edits[p.id]) : p))
+      .map((p) => this.withImages(p));
+  }
+  // A product's photos are an ordered list; the first is the one cards show.
+  // Records saved before galleries existed carry a single img/imgV/imgPos/
+  // imgFit instead — read those as a one-photo gallery. img is then always
+  // the main photo's full URL, so code that only needs one photo keeps
+  // working unchanged.
+  withImages(p) {
+    let images;
+    if (Array.isArray(p.images)) images = p.images.filter((i) => i && typeof i.url === 'string' && i.url);
+    else if (p.img) images = [{ url: p.img + (p.imgV ? '?v=' + p.imgV : ''), pos: p.imgPos, fit: p.imgFit }];
+    else images = [];
+    return Object.assign({}, p, { images, img: images.length ? images[0].url : '' });
   }
   ordStateOf(ref) { return (this.state.orders.find((o) => o.ref === ref) || {}).state || 'new'; }
   async ordAdvanceRef(ref) {
@@ -308,8 +323,9 @@ class App {
       nf: { name: p.name, price: String(p.price), stock: String(this.stockOf(id)),
             cat: p.cat === 'hydro' ? 'hydro' : 'kokedama',
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
-      nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfNewId: null,
-      nfImgPos: this.imgPosOf(p), nfImgFit: this.imgFitOf(p)
+      nfImgStatus: 'idle', nfImgError: '', nfNewId: null,
+      nfImages: p.images.map((i) => Object.assign({}, i)), nfImgSel: 0, nfImgProgress: null,
+      nfStands: Array.isArray(p.standIds) ? p.standIds.slice() : null
     });
   }
   saveEdit() {
@@ -321,14 +337,13 @@ class App {
       cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       size: (nf.size || '').trim(), light: (nf.light || '').trim(),
       water: (nf.water || '').trim(), desc: (nf.desc || '').trim(),
-      imgPos: this.state.nfImgPos, imgFit: this.state.nfImgFit
+      images: this.state.nfImages, standIds: this.state.nfStands
     };
     // A product that never had a photo (img: '' in its base catalog entry)
     // needs its edits.img set explicitly here, or the upload succeeds but
     // the catalog record never starts pointing at it — the site keeps
     // showing the "בצילום" placeholder forever even though the real photo
     // is sitting in Blob storage at the right path.
-    if (this.state.nfImgStatus === 'done') { patch.img = BLOB_IMG_BASE + editId + '.jpg'; patch.imgV = Date.now(); }
     this.setState((st) => ({
       edits: Object.assign({}, st.edits, { [editId]: Object.assign({}, st.edits[editId], patch) }),
       stock: Object.assign({}, st.stock, { [editId]: Number(nf.stock) || 0 }),
@@ -353,12 +368,13 @@ class App {
   // very node being dragged.
   handleImgDragStart(e) {
     const frame = e.target.closest('[data-img-frame]');
-    if (!frame || this.state.nfImgFit === 'contain') return;
+    const sel = this.state.nfImages[this.state.nfImgSel];
+    if (!frame || !sel || this.fitOf(sel) === 'contain') return;
     const img = frame.querySelector('img');
     if (!img) return;
     e.preventDefault();
     const rect = frame.getBoundingClientRect();
-    const start = this.imgPosOf({ imgPos: this.state.nfImgPos }).split(' ').map((v) => parseFloat(v) || 0);
+    const start = this.posOf(sel).split(' ').map((v) => parseFloat(v) || 0);
     let next = start;
     const clamp = (v) => Math.max(0, Math.min(100, v));
     const move = (ev) => {
@@ -371,7 +387,7 @@ class App {
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      this.setState({ nfImgPos: next[0].toFixed(1) + '% ' + next[1].toFixed(1) + '%' });
+      this.setSelImg({ pos: next[0].toFixed(1) + '% ' + next[1].toFixed(1) + '%' });
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -401,10 +417,8 @@ class App {
     const name = (nf.name || '').trim();
     if (!name) return;
     const id = this.state.nfNewId || ('x' + (this.state.extra.length + 1));
-    const hasImg = this.state.nfImgStatus === 'done';
     const item = {
-      id, img: hasImg ? (BLOB_IMG_BASE + id + '.jpg') : '', imgV: hasImg ? Date.now() : undefined,
-      imgPos: this.state.nfImgPos, imgFit: this.state.nfImgFit, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
+      id, images: this.state.nfImages, standIds: this.state.nfStands, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       name, price: Number(nf.price) || 0,
       size: (nf.size || '').trim() || 'בינונית',
       light: (nf.light || '').trim() || 'אור עקיף בהיר',
@@ -416,7 +430,7 @@ class App {
       extra: st.extra.concat([item]),
       stock: Object.assign({}, st.stock, { [id]: Number(nf.stock) || 0 }),
       admForm: false,
-      nf: this.blankNf(), nfNewId: null, nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0
+      nf: this.blankNf(), nfNewId: null, nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: null
     }));
     this.persistCatalog();
   }
@@ -428,20 +442,110 @@ class App {
     this._fadeT = setTimeout(() => this.setState({ cat, fading: false }), 220);
   }
   fmt(n) { return n.toLocaleString('he-IL') + ' ' + SHEKEL; }
-  setQty(id, delta) {
+  setQty(key, delta) {
     this.setState((s) => {
       const cart = Object.assign({}, s.cart);
-      const next = (cart[id] || 0) + delta;
-      if (next <= 0) delete cart[id]; else cart[id] = next;
+      const next = (cart[key] || 0) + delta;
+      if (next <= 0) delete cart[key]; else cart[key] = next;
       return { cart };
     });
   }
-  add(id) {
-    this.setQty(id, 1);
+  // With no explicit stand, a product goes in with its cheapest stand — the
+  // same one its card's "החל מ" price is quoted on.
+  add(id, standId) {
+    const p = this.catalog().find((x) => x.id === id);
+    const stand = standId !== undefined ? standId : (this.defaultStand(p) || {}).id;
+    this.setQty(this.cartKey(id, stand), 1);
     const narrow = window.innerWidth < 900;
     if (!narrow) this.setState({ open: true });
   }
   cartCount() { return Object.values(this.state.cart).reduce((a, b) => a + b, 0); }
+
+  // ── stand sizes ──────────────────────────────────────────────────────
+  // Cart lines are keyed by product and stand, so the same plant on two
+  // stands is two lines. A product sold without a stand choice keys by id.
+  cartKey(id, standId) { return standId ? id + '~' + standId : id; }
+  cartLines() {
+    const s = this.state;
+    const all = this.catalog();
+    return Object.keys(s.cart).map((key) => {
+      const [id, standId] = key.split('~');
+      const p = all.find((x) => x.id === id);
+      if (!p) return null;
+      const stand = standId ? (s.stands.find((x) => x.id === standId) || null) : null;
+      const unit = p.price + this.standPrice(stand);
+      const qty = s.cart[key];
+      return { key, id, p, stand, qty, unit, total: unit * qty, name: p.name };
+    }).filter(Boolean);
+  }
+  lineName(l) { return l.stand ? `${l.name} · סטנד ${l.stand.label}` : l.name; }
+  standPrice(stand) { return stand ? Math.max(0, Number(stand.price) || 0) : 0; }
+  // standIds missing means "every stand size"; an explicit list narrows it.
+  standsFor(p) {
+    const all = this.state.stands;
+    if (!p || !Array.isArray(p.standIds)) return all;
+    return all.filter((x) => p.standIds.includes(x.id));
+  }
+  defaultStand(p) {
+    return this.standsFor(p).reduce((best, x) => (!best || this.standPrice(x) < this.standPrice(best) ? x : best), null);
+  }
+  selectedStand(p) {
+    return this.standsFor(p).find((x) => x.id === this.state.prodStand) || this.defaultStand(p);
+  }
+  priceFrom(p) {
+    const opts = this.standsFor(p);
+    if (!opts.length) return { amount: p.price, from: false };
+    const adds = opts.map((x) => this.standPrice(x));
+    const min = Math.min(...adds);
+    return { amount: p.price + min, from: Math.max(...adds) > min };
+  }
+  setStand(id, patch) {
+    this.setState((st) => ({ stands: st.stands.map((x) => (x.id === id ? Object.assign({}, x, patch.price !== undefined ? { price: Math.max(0, Number(patch.price) || 0) } : { label: String(patch.label || '').trim() || x.label }) : x)) }));
+    clearTimeout(this._standPersistT);
+    this._standPersistT = setTimeout(() => this.persistCatalog(), 600);
+  }
+  addStand() {
+    this.setState((st) => ({ stands: st.stands.concat([{ id: 's' + Date.now().toString(36), label: 'גודל חדש', price: 0 }]) }));
+    this.persistCatalog();
+  }
+  removeStand(id) {
+    this.setState((st) => ({ stands: st.stands.filter((x) => x.id !== id) }));
+    this.persistCatalog();
+  }
+  // Ticking every stand again goes back to "all", so a size added later
+  // reaches this product too instead of being missed by a frozen list.
+  toggleNfStand(id) {
+    this.setState((st) => {
+      const allIds = st.stands.map((x) => x.id);
+      const cur = Array.isArray(st.nfStands) ? st.nfStands : allIds;
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.concat([id]);
+      return { nfStands: allIds.every((x) => next.includes(x)) ? null : next };
+    });
+  }
+
+  // ── gallery editing ──────────────────────────────────────────────────
+  setSelImg(patch) {
+    this.setState((st) => ({ nfImages: st.nfImages.map((img, i) => (i === st.nfImgSel ? Object.assign({}, img, patch) : img)) }));
+  }
+  removeNfImg(idx) {
+    this.setState((st) => {
+      const nfImages = st.nfImages.filter((_, i) => i !== idx);
+      return { nfImages, nfImgSel: Math.min(st.nfImgSel > idx ? st.nfImgSel - 1 : st.nfImgSel, Math.max(0, nfImages.length - 1)) };
+    });
+  }
+  makeNfImgMain(idx) {
+    this.setState((st) => {
+      if (!st.nfImages[idx]) return {};
+      const nfImages = [st.nfImages[idx]].concat(st.nfImages.filter((_, i) => i !== idx));
+      return { nfImages, nfImgSel: 0 };
+    });
+  }
+  stepProdImg(step) {
+    const p = this.catalog().find((x) => x.id === this.state.prod);
+    const n = p ? p.images.length : 0;
+    if (n < 2) return;
+    this.setState((st) => ({ prodImg: (st.prodImg + step + n) % n }));
+  }
 
   // ── events ───────────────────────────────────────────────────────────
   handleClick(e) {
@@ -473,12 +577,12 @@ class App {
       case 'toggleNav': this.setState((st) => ({ navOpen: !st.navOpen })); break;
       case 'closeNav': this.setState({ navOpen: false }); break;
       case 'openCartBar': this.setState({ open: true }); break;
-      case 'open': this.nav({ screen: 'product', prod: id }); break;
+      case 'open': this.nav({ screen: 'product', prod: id, prodImg: 0, prodStand: null }); break;
       case 'add': this.add(id); break;
       case 'qtyInc': this.setQty(id, 1); break;
       case 'qtyDec': this.setQty(id, -1); break;
       case 'qtyRemove': this.setQty(id, -(s.cart[id] || 0)); break;
-      case 'addCurrent': this.add(s.prod); break;
+      case 'addCurrent': { const cp = this.catalog().find((x) => x.id === s.prod); this.add(s.prod, (this.selectedStand(cp) || {}).id); break; }
       case 'pickShip': this.setState({ method: 'ship' }); break;
       case 'pickPickup': this.setState({ method: 'pickup' }); break;
       case 'payCard': this.setState({ pay: 'card' }); break;
@@ -519,11 +623,20 @@ class App {
       case 'admEdit': this.openEditor(id); break;
       case 'admInc': this.bumpStock(id, 1); break;
       case 'admDec': this.bumpStock(id, -1); break;
-      case 'admOpenNew': this.setState((st) => ({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfImgPos: '50% 50%', nfImgFit: 'cover', nfNewId: 'x' + (st.extra.length + 1) })); break;
-      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImgBust: 0, nfImgPos: '50% 50%', nfImgFit: 'cover', nfNewId: null }); break;
-      case 'nfFitCover': this.setState({ nfImgFit: 'cover' }); break;
-      case 'nfFitContain': this.setState({ nfImgFit: 'contain' }); break;
-      case 'nfPosCenter': this.setState({ nfImgPos: '50% 50%' }); break;
+      case 'admOpenNew': this.setState((st) => ({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: null, nfNewId: 'x' + (st.extra.length + 1) })); break;
+      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: null, nfNewId: null }); break;
+      case 'nfFitCover': this.setSelImg({ fit: 'cover' }); break;
+      case 'nfFitContain': this.setSelImg({ fit: 'contain' }); break;
+      case 'nfPosCenter': this.setSelImg({ pos: '50% 50%' }); break;
+      case 'nfImgPick': this.setState({ nfImgSel: Number(id) || 0 }); break;
+      case 'nfImgRemove': this.removeNfImg(Number(id) || 0); break;
+      case 'nfImgMain': this.makeNfImgMain(Number(id) || 0); break;
+      case 'nfStandToggle': this.toggleNfStand(id); break;
+      case 'prodImg': this.setState({ prodImg: Number(id) || 0 }); break;
+      case 'prodImgStep': this.stepProdImg(Number(el.dataset.step) || 0); break;
+      case 'pickStand': this.setState({ prodStand: id }); break;
+      case 'standAdd': this.addStand(); break;
+      case 'standRemove': this.removeStand(id); break;
       case 'nfDropModel': this.dropModel(); break;
       case 'nfSetKok': this.setNf('cat', 'kokedama'); break;
       case 'nfSetHyd': this.setNf('cat', 'hydro'); break;
@@ -547,7 +660,9 @@ class App {
     if (t.dataset.siteKey) this.setSite(t.dataset.siteKey, t.value);
     else if (t.dataset.nfField) this.setNf(t.dataset.nfField, t.value);
     else if (t.dataset.admPass) this.state.admPass = t.value;
-    else if (t.dataset.nfImgFile) { const f = t.files && t.files[0]; t.value = ''; if (f) this.uploadProductImage(this.state.editId || this.state.nfNewId, f); }
+    else if (t.dataset.nfImgFile) { const fs = Array.from(t.files || []); t.value = ''; if (fs.length) this.uploadProductImages(this.state.editId || this.state.nfNewId, fs); }
+    else if (t.dataset.standLabel) this.setStand(t.dataset.standLabel, { label: t.value });
+    else if (t.dataset.standPrice) this.setStand(t.dataset.standPrice, { price: t.value });
     else if (t.dataset.storyImgFile) { const f = t.files && t.files[0]; const slot = t.dataset.storyImgFile; t.value = ''; if (f) this.uploadStoryImage(slot, f); }
   }
 
@@ -586,53 +701,104 @@ class App {
     });
   }
 
-  async _uploadImageFile(id, file) {
-    const isHeic = this.looksLikeHeic(file);
-    // HEIC can't be decoded by <canvas> in the browser, so send it to the
-    // server as-is (under the platform's 4.5MB request-body limit) and let
-    // the API route convert + resize it there instead.
-    if (isHeic && file.size > 4 * 1024 * 1024) {
-      throw new Error('התמונה גדולה מדי (מעל 4MB). אפשר לצמצם אותה או לצלם באיכות נמוכה יותר ולנסות שוב.');
+  // Uploads used to fail on first try and work on the second. Phone HEIC went
+  // up raw (3–8 MB) and the server spent ~8–10s converting it, so on a home
+  // connection the request outlived the browser's 30s limit — by the retry
+  // the server was warm. Now every photo is decoded and shrunk here first,
+  // HEIC included (Safari reads it natively), so what's sent is a ~400 KB
+  // JPEG. Only a HEIC this browser can't read (Chrome) still goes up raw,
+  // with a timeout sized for the conversion. Dropped connections, timeouts
+  // and 5xx retry on their own.
+  async _uploadImageFile(id, file, { unique = false, onConverting } = {}) {
+    let body, contentType, timeoutMs = 45000;
+    try {
+      body = await this.withTimeout(this.resizeImageFile(file, 1600, 0.85), 25000, 'decode-timeout');
+      contentType = 'image/jpeg';
+    } catch (decodeErr) {
+      if (!this.looksLikeHeic(file)) throw new Error('לא הצלחנו לקרוא את התמונה — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.');
+      if (file.size > 4.4 * 1024 * 1024) throw new Error('תמונת HEIC גדולה מדי בשביל הדפדפן הזה. אפשר להעלות אותה מ-Safari (שקורא HEIC ישירות), או לייצא אותה קודם כ-JPG.');
+      body = file;
+      contentType = file.type || 'image/heic';
+      timeoutMs = 120000;
+      if (onConverting) onConverting();
     }
-    const body = isHeic ? file : await this.withTimeout(this.resizeImageFile(file, 1600, 0.85), 15000, 'לא הצלחנו לעבד את התמונה בזמן סביר — ייתכן שהפורמט לא נתמך. יש לשמור כ-JPG או PNG ולנסות שוב.');
-    const contentType = isHeic ? (file.type || 'image/heic') : body.type;
+    const url = '/api/upload-image?id=' + encodeURIComponent(id) + (unique ? '&unique=1' : '');
+    let lastErr;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await this._postImage(url, body, contentType, timeoutMs);
+      } catch (err) {
+        lastErr = err;
+        if (!err.retryable || attempt === 3) break;
+        await new Promise((r) => setTimeout(r, attempt * 1500));
+      }
+    }
+    throw lastErr;
+  }
+  async _postImage(url, body, contentType, timeoutMs) {
     const controller = new AbortController();
-    const abortT = setTimeout(() => controller.abort(), 30000);
+    const abortT = setTimeout(() => controller.abort(), timeoutMs);
     let res;
     try {
-      res = await fetch('/api/upload-image?id=' + encodeURIComponent(id), {
+      res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': contentType, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
         body,
         signal: controller.signal
       });
     } catch (fetchErr) {
-      if (fetchErr && fetchErr.name === 'AbortError') throw new Error('ההעלאה נמשכה יותר מדי זמן — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
-      throw new Error('שגיאת רשת בהעלאה — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+      const err = new Error(fetchErr && fetchErr.name === 'AbortError'
+        ? 'ההעלאה נמשכה יותר מדי זמן — יש לבדוק את החיבור לאינטרנט ולנסות שוב.'
+        : 'שגיאת רשת בהעלאה — יש לבדוק את החיבור לאינטרנט ולנסות שוב.');
+      err.retryable = true;
+      throw err;
     } finally {
       clearTimeout(abortT);
     }
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       const known = {
         'heic conversion failed': 'לא הצלחנו להמיר את קובץ ה-HEIC. אפשר לנסות תמונה אחרת או לשמור אותה כ-JPG.',
         'image too large': 'התמונה גדולה מדי. אפשר לצמצם אותה ולנסות שוב.',
         'unsupported image type': 'סוג הקובץ לא נתמך. יש להעלות JPG, PNG, WEBP או תמונת אייפון (HEIC).',
         'unauthorized': 'ההעלאה נחסמה — יש להתחבר מחדש לפאנל הניהול ולנסות שוב.'
       };
-      throw new Error(known[data.error] || data.error || ('שגיאה בהעלאה (' + res.status + ')'));
+      const err = new Error(known[data.error] || data.error || ('שגיאה בהעלאה (' + res.status + ')'));
+      err.retryable = res.status >= 500 || res.status === 408 || res.status === 429;
+      throw err;
     }
+    if (!data.url) {
+      const err = new Error('השרת לא החזיר כתובת לתמונה. יש לנסות שוב.');
+      err.retryable = true;
+      throw err;
+    }
+    return data.url;
   }
-  async uploadProductImage(id, file) {
-    if (!id) return;
-    this.setState({ nfImgStatus: 'uploading', nfImgError: '' });
-    try {
-      await this._uploadImageFile(id, file);
-      const bust = Date.now();
-      this.setState((st) => ({ nfImgStatus: 'done', nfImgBust: bust, imgBusts: Object.assign({}, st.imgBusts, { [id]: bust }) }));
-    } catch (err) {
-      this.setState({ nfImgStatus: 'error', nfImgError: (err && err.message) || 'ההעלאה נכשלה' });
+  // Several photos can be picked at once; they go up one at a time (steadier
+  // on a phone connection than in parallel) and each lands in the gallery as
+  // soon as it's done, so a failure midway keeps everything before it.
+  async uploadProductImages(id, files) {
+    if (!id || !files.length) return;
+    const total = files.length;
+    this.setState({ nfImgStatus: 'uploading', nfImgError: '', nfImgProgress: { done: 0, total, converting: false } });
+    for (let i = 0; i < total; i++) {
+      try {
+        const url = await this._uploadImageFile(id, files[i], {
+          unique: true,
+          onConverting: () => this.setState((st) => ({ nfImgProgress: Object.assign({}, st.nfImgProgress, { converting: true }) }))
+        });
+        this.setState((st) => ({
+          nfImages: st.nfImages.concat([{ url, pos: '50% 50%', fit: 'cover' }]),
+          nfImgSel: st.nfImages.length,
+          nfImgProgress: { done: i + 1, total, converting: false }
+        }));
+      } catch (err) {
+        const prefix = total > 1 ? `תמונה ${i + 1} מתוך ${total}: ` : '';
+        this.setState({ nfImgStatus: 'error', nfImgError: prefix + ((err && err.message) || 'ההעלאה נכשלה') });
+        return;
+      }
     }
+    this.setState({ nfImgStatus: 'done' });
   }
   async uploadStoryImage(slot, file) {
     const statusKey = 'storyImgStatus' + slot, errorKey = 'storyImgError' + slot, bustKey = 'storyImgBust' + slot;
@@ -751,34 +917,32 @@ class App {
     if (s.screen === 'admin' && s.admTab === 'tags') this.mountQrTags();
   }
 
-  // Vercel Blob's CDN (and every visitor's own browser cache) can serve a
-  // product's old photo for up to a minute after a real overwrite — these
-  // fixed URLs have no cache buster otherwise. p.imgV is a timestamp saved
-  // to the catalog itself on every image upload, so the bust applies for
-  // ALL visitors on their next load, not just the admin's current tab.
-  // imgBusts is a same-tick fallback for the instant after upload, before
-  // the edit's imgV has made it into a render pass.
-  bustFor(id) { return this.state.imgBusts[id] || 0; }
   // Photos are shot at whatever aspect the phone gives; the frames on site
-  // are 4:5. Rather than crop the file, each product carries how its photo
-  // should sit in that frame — fill and pan, or show whole.
-  imgFitOf(p) { return p.imgFit === 'contain' ? 'contain' : 'cover'; }
-  imgPosOf(p) { return (typeof p.imgPos === 'string' && p.imgPos) ? p.imgPos : '50% 50%'; }
-  imgBgStyle(p) { return `background-size: ${this.imgFitOf(p)}; background-position: ${this.imgPosOf(p)}; background-repeat: no-repeat`; }
+  // are 4:5. Rather than crop the file, each photo carries how it should sit
+  // in that frame — fill and pan, or show whole. These take a photo entry
+  // from a product's images list (or nothing, for the defaults).
+  fitOf(img) { return img && img.fit === 'contain' ? 'contain' : 'cover'; }
+  posOf(img) { return (img && typeof img.pos === 'string' && img.pos) ? img.pos : '50% 50%'; }
+  imgBgStyle(img) { return `background-size: ${this.fitOf(img)}; background-position: ${this.posOf(img)}; background-repeat: no-repeat`; }
+  imgTagStyle(img) { return `object-fit: ${this.fitOf(img)}; object-position: ${this.posOf(img)}`; }
+  mainImg(p) { return (p && p.images && p.images[0]) || null; }
   // ── shared: product tile ────────────────────────────────────────────
   shape(p) {
     const stock = this.stockOf(p.id);
-    const bust = p.imgV || this.bustFor(p.id);
     return {
       id: p.id, name: p.name, size: p.size, desc: p.desc,
-      bg: p.img ? `url('${p.img}${bust ? '?v=' + bust : ''}')` : 'none',
-      bgFraming: this.imgBgStyle(p),
+      bg: p.img ? `url('${p.img}')` : 'none',
+      bgFraming: this.imgBgStyle(this.mainImg(p)),
       has3d: !!p.embed || !!p.model, noPhoto: !p.img && !p.embed && !p.model,
       stockLabel: stock === 0 ? 'לא זמין' : (stock <= 2 ? 'יחידות אחרונות' : 'זמין במלאי'),
       stockTag: stock === 0 ? 'tag-outline' : (stock <= 2 ? 'tag-accent' : 'tag-neutral'),
       soldOut: stock === 0, inStock: stock > 0,
-      priceLabel: this.fmt(p.price)
+      priceLabel: this.priceLabel(p)
     };
+  }
+  priceLabel(p) {
+    const pf = this.priceFrom(p);
+    return (pf.from ? 'החל מ־' : '') + this.fmt(pf.amount);
   }
   productCard(p, { featured = false } = {}) {
     const sh = this.shape(p);
@@ -921,11 +1085,7 @@ class App {
   }
 
   subtotal() {
-    const s = this.state;
-    return Object.keys(s.cart).reduce((sum, id) => {
-      const p = this.catalog().find((x) => x.id === id);
-      return sum + (p ? p.price * s.cart[id] : 0);
-    }, 0);
+    return this.cartLines().reduce((sum, l) => sum + l.total, 0);
   }
 
   async submitOrder() {
@@ -957,10 +1117,7 @@ class App {
     const subtotal = this.subtotal();
     const freeShip = subtotal >= 300;
     const shipping = pickup || freeShip ? 0 : 39;
-    const items = Object.keys(s.cart).map((id) => {
-      const p = this.catalog().find((x) => x.id === id);
-      return { id, name: p ? p.name : id, qty: s.cart[id], price: p ? p.price : 0 };
-    });
+    const items = this.cartLines().map((l) => ({ id: l.key, name: this.lineName(l), qty: l.qty, price: l.unit }));
 
     this.setState({ orderSubmitting: true, orderError: '' });
     try {
@@ -1001,11 +1158,7 @@ class App {
     const pickup = s.method === 'pickup';
     const freeShip = subtotal >= 300;
     const shipping = subtotal === 0 || pickup || freeShip ? 0 : 39;
-    const lines = Object.keys(s.cart).map((id) => {
-      const p = this.catalog().find((x) => x.id === id);
-      const qty = s.cart[id];
-      return { id, name: p.name, qty, lineLabel: this.fmt(p.price * qty) };
-    });
+    const lines = this.cartLines();
     return `
     <div data-act="closeCart" aria-hidden="true" style="position: fixed; inset: 0; z-index: 58; background: rgba(24,30,24,0.34); transition: opacity 0.3s ease; display: var(--cart-scrim, none); opacity: ${s.open ? 1 : 0}; pointer-events: ${s.open ? 'auto' : 'none'}"></div>
     <aside data-cart="1" style="position: var(--cart-pos, sticky); top: 0; height: 100vh; flex: 0 0 auto; overflow: hidden; border-inline-end: 1px solid var(--color-divider); background: var(--color-neutral-100); transition: width 0.34s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${s.open ? '0s' : '0.34s'}; width: ${s.open ? 'var(--cart-w)' : '0px'}; visibility: ${s.open ? 'visible' : 'hidden'}">
@@ -1018,19 +1171,20 @@ class App {
           ${lines.length === 0 ? `<div style="padding: 70px 0; text-align: center; color: var(--color-neutral-600); font-size: 14px; line-height: 1.9">העגלה ריקה.<br>אפשר להתחיל בכריכה אחת.</div>` : ''}
           ${lines.map((l) => `
           <div style="display: grid; grid-template-columns: 62px 1fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--color-divider)">
-            <div style="width: 62px; height: 78px; border: 1px solid var(--color-divider); background: var(--color-surface)"></div>
+            <div style="width: 62px; height: 78px; border: 1px solid var(--color-divider); background-color: var(--color-surface); ${l.p.img ? `background-image: url('${esc(l.p.img)}'); ${this.imgBgStyle(this.mainImg(l.p))}` : ''}"></div>
             <div style="display: flex; flex-direction: column; gap: 7px">
               <div style="display: flex; justify-content: space-between; gap: 10px; align-items: baseline">
                 <span style="font-family: var(--font-heading); font-size: 16px">${esc(l.name)}</span>
-                <span style="font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--color-neutral-700)">${l.lineLabel}</span>
+                <span style="font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--color-neutral-700)">${this.fmt(l.total)}</span>
               </div>
+              ${l.stand ? `<span style="font-size: 13px; color: var(--color-neutral-600)">סטנד ${esc(l.stand.label)}</span>` : ''}
               <div style="display: flex; align-items: center; gap: 14px; margin-top: 3px">
                 <div class="seg">
-                  <button class="seg-opt" data-act="qtyDec" data-id="${l.id}" aria-label="הפחתה">${ICON.minus15}</button>
+                  <button class="seg-opt" data-act="qtyDec" data-id="${esc(l.key)}" aria-label="הפחתה">${ICON.minus15}</button>
                   <span class="seg-opt" style="min-width: 34px; justify-content: center; font-variant-numeric: tabular-nums">${l.qty}</span>
-                  <button class="seg-opt" data-act="qtyInc" data-id="${l.id}" aria-label="הוספה">${ICON.plus15}</button>
+                  <button class="seg-opt" data-act="qtyInc" data-id="${esc(l.key)}" aria-label="הוספה">${ICON.plus15}</button>
                 </div>
-                <button class="btn btn-ghost" data-act="qtyRemove" data-id="${l.id}" style="border: 0; font-size: 13px">הסרה</button>
+                <button class="btn btn-ghost" data-act="qtyRemove" data-id="${esc(l.key)}" style="border: 0; font-size: 13px">הסרה</button>
               </div>
             </div>
           </div>`).join('')}
@@ -1070,9 +1224,11 @@ class App {
         </div>
       </section>
 
+      ${this.renderCareGuide()}
+
       <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider); max-width: 1180px; margin-inline: auto">
         <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 34px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">I</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">II</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.storyKicker)}</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: clamp(30px, 4vw, 60px); align-items: stretch">
@@ -1095,7 +1251,7 @@ class App {
 
       <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider)">
         <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 30px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">II</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">III</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.beyondKicker)}</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: clamp(28px, 4vw, 60px); align-items: start">
@@ -1118,7 +1274,7 @@ class App {
 
       <section style="padding: clamp(44px, 6vw, 68px) var(--pg) 30px; border-top: 1px solid var(--color-divider)">
         <div style="display: flex; align-items: baseline; gap: 18px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">III</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">IV</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">קטלוג</span>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--color-divider)">
@@ -1134,6 +1290,53 @@ class App {
         </div>
       </section>
     </div>`;
+  }
+
+  // ── HOME: care guide ─────────────────────────────────────────────────
+  // For someone who already has the plant: pick it, read how to keep it.
+  // Same photos as the catalog, but no price or cart — the card is a way in
+  // to the plant's page, where the full care notes live.
+  renderCareGuide() {
+    const site = this.state.site;
+    const all = this.catalog();
+    const groups = [
+      { label: 'קוקודמות', items: all.filter((p) => p.cat !== 'hydro') },
+      { label: 'הידרופוני', items: all.filter((p) => p.cat === 'hydro') }
+    ].filter((g) => g.items.length);
+    return `
+      <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider)">
+        <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 18px">
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">I</span>
+          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך טיפול</span>
+        </div>
+        <h2 style="font-size: clamp(27px, 2.9vw, 38px); font-weight: 400; line-height: 1.16; text-wrap: balance">${esc(site.careTitle)}</h2>
+        <p style="margin: 10px 0 0; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.6; color: var(--color-neutral-700); text-wrap: balance">${esc(site.careSub)}</p>
+        <div style="display: flex; flex-direction: column; gap: clamp(30px, 4vw, 48px); margin-top: clamp(30px, 4vw, 44px)">
+          ${groups.map((g) => `
+          <div style="display: flex; flex-direction: column; gap: 22px">
+            ${groups.length > 1 ? `<h3 style="font-size: 18px; font-weight: 400; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">${g.label}</h3>` : ''}
+            <div style="display: grid; grid-template-columns: var(--cards, repeat(auto-fill, minmax(min(230px, 100%), 1fr))); gap: var(--cards-gap, 48px 30px)">
+              ${g.items.map((p) => this.careCard(p)).join('')}
+            </div>
+          </div>`).join('')}
+        </div>
+      </section>`;
+  }
+  careCard(p) {
+    const img = this.mainImg(p);
+    return `
+      <a href="#/product/${encodeURIComponent(p.id)}" class="care-card" data-act="open" data-id="${esc(p.id)}">
+        <span class="plate care-photo" style="background-image: ${p.img ? `url('${esc(p.img)}')` : 'none'}; ${this.imgBgStyle(img)}">
+          ${p.img ? '' : '<span class="care-nophoto">בצילום</span>'}
+        </span>
+        <span class="care-name">${esc(p.name)}</span>
+        <span class="care-desc">${esc(p.desc)}</span>
+        <span class="care-facts">
+          <span><span class="care-k">אור</span><span>${esc(p.light)}</span></span>
+          <span><span class="care-k">השקיה</span><span>${esc(p.water)}</span></span>
+        </span>
+        <span class="care-more">למדריך המלא<span aria-hidden="true">${ICON.crumb}</span></span>
+      </a>`;
   }
 
   // ── CATEGORY ─────────────────────────────────────────────────────────
@@ -1174,6 +1377,12 @@ class App {
       .sort((a, b) => (a.water === prod.water ? 0 : 1) - (b.water === prod.water ? 0 : 1))
       .slice(0, 3);
     if (prod.model) this.loadModelViewer().catch(() => {});
+    const imgs = prod.images;
+    const idx = Math.min(s.prodImg || 0, Math.max(0, imgs.length - 1));
+    const cur = imgs[idx];
+    const stands = this.standsFor(prod);
+    const stand = this.selectedStand(prod);
+    const unitPrice = prod.price + this.standPrice(stand);
     const desc = prod.desc + (prod.cat === 'hydro'
       ? ' הצמח מגיע בכלי זכוכית עם רשת שורשים ואבני חלוקים. מחליפים מים כל שבועיים ומוסיפים שתי טיפות תמיסת מזון, ומשאירים את שליש השורשים העליון חשוף לאוויר.'
       : ' הכריכה נעשית ביד בכרית קוקוס וטחב ספגנום, בקוטר המתאים לגודל הצמח, וקשורה בחוט כותנה. משקים בטבילה, בלי אדמה ובלי עציץ.');
@@ -1198,15 +1407,23 @@ class App {
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : `
           <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
-            ${prod.img ? `<img src="${prod.img}${(prod.imgV || this.bustFor(prod.id)) ? '?v=' + (prod.imgV || this.bustFor(prod.id)) : ''}" alt="${esc(prod.name)}" style="object-fit: ${this.imgFitOf(prod)}; object-position: ${this.imgPosOf(prod)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
-          </div>`}
+            ${cur ? `<img src="${esc(cur.url)}" alt="${esc(prod.name)}${imgs.length > 1 ? ` — תמונה ${idx + 1} מתוך ${imgs.length}` : ''}" style="${this.imgTagStyle(cur)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
+            ${imgs.length > 1 ? `
+            <button class="gal-nav" data-act="prodImgStep" data-step="-1" aria-label="התמונה הקודמת" style="inset-inline-start: 10px"><span style="display: block; transform: scaleX(-1)">${ICON.crumb}</span></button>
+            <button class="gal-nav" data-act="prodImgStep" data-step="1" aria-label="התמונה הבאה" style="inset-inline-end: 10px">${ICON.crumb}</button>
+            <span class="gal-count" aria-hidden="true">${idx + 1} / ${imgs.length}</span>` : ''}
+          </div>
+          ${imgs.length > 1 ? `
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; max-width: 420px">
+            ${imgs.map((im, i) => `<button class="gal-thumb${i === idx ? ' is-on' : ''}" data-act="prodImg" data-id="${i}" aria-label="תמונה ${i + 1}" aria-pressed="${i === idx}" style="background-image: url('${esc(im.url)}'); ${this.imgBgStyle(im)}"></button>`).join('')}
+          </div>` : ''}`}
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 10px">
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${prod.cat === 'hydro' ? 'הידרופוני · שורשים במים' : 'קוקודמה · כריכת יד'}</span>
           <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; line-height: 1.14">${esc(prod.name)}</h1>
           <span style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
-            <span style="font-size: 24px; font-family: var(--font-heading); font-variant-numeric: tabular-nums">${this.fmt(prod.price)}</span>
+            <span style="font-size: 24px; font-family: var(--font-heading); font-variant-numeric: tabular-nums">${this.fmt(unitPrice)}</span>
             <span class="tag ${stockTag}">${stockLabel}</span>
           </span>
           <p style="margin: 0; font-size: 16px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(desc)}</p>
@@ -1216,7 +1433,11 @@ class App {
               <tr><td style="color: var(--color-neutral-600); width: 34%">גודל</td><td>${esc(prod.size)}</td></tr>
               <tr><td style="color: var(--color-neutral-600)">אור</td><td>${esc(prod.light)}</td></tr>
               <tr><td style="color: var(--color-neutral-600)">השקיה</td><td>${esc(prod.water)}</td></tr>
-              <tr><td style="color: var(--color-neutral-600)">כולל</td><td>מגש ניקוז וכרטיס טיפוח</td></tr>
+              ${stands.length ? `<tr><td style="color: var(--color-neutral-600); vertical-align: top; padding-top: 15px">גודל הסטנד לבחירה</td><td>
+                <div class="stand-opts" role="radiogroup" aria-label="גודל הסטנד">
+                  ${stands.map((x) => `<button class="stand-opt" role="radio" aria-checked="${!!stand && stand.id === x.id}" data-act="pickStand" data-id="${esc(x.id)}">${esc(x.label)}${this.standPrice(x) ? `<span class="stand-add">+${this.fmt(this.standPrice(x))}</span>` : ''}</button>`).join('')}
+                </div>
+              </td></tr>` : ''}
             </tbody>
           </table>
           <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px">
@@ -1234,12 +1455,12 @@ class App {
             <div style="display: grid; grid-template-columns: var(--rel, repeat(3, minmax(0, 1fr))); gap: 14px">
               ${related.map((r) => `
               <article style="display: flex; flex-direction: column; gap: 9px; min-width: 0">
-                <div data-act="open" data-id="${r.id}" class="plate" role="img" aria-label="${esc(r.name)}" style="position: relative; aspect-ratio: 1; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${r.img ? `url('${r.img}${r.imgV ? '?v=' + r.imgV : ''}')` : 'none'}; ${this.imgBgStyle(r)}">
+                <div data-act="open" data-id="${r.id}" class="plate" role="img" aria-label="${esc(r.name)}" style="position: relative; aspect-ratio: 1; cursor: pointer; min-width: 0; overflow: hidden; background-color: var(--color-neutral-200); background-image: ${r.img ? `url('${r.img}')` : 'none'}; ${this.imgBgStyle(this.mainImg(r))}">
                   ${!r.img && !r.embed && !r.model ? `<span style="position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.2em; color: var(--color-neutral-800)">בצילום</span>` : ''}
                   ${r.embed || r.model ? `<span style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--color-neutral-800)">${ICON.cubeSm}<span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.18em">תלת־ממד</span></span>` : ''}
                 </div>
                 <a href="#" data-act="open" data-id="${r.id}" style="font-size: 14px; line-height: 1.5; color: inherit">${esc(r.name)}</a>
-                <span style="font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${this.fmt(r.price)}</span>
+                <span style="font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${this.priceLabel(r)}</span>
                 <span style="font-size: 12px; line-height: 1.5; color: var(--color-neutral-700)">${esc(r.water)}</span>
               </article>`).join('')}
             </div>
@@ -1251,13 +1472,8 @@ class App {
 
   // ── CHECKOUT ─────────────────────────────────────────────────────────
   renderCheckout() {
-    const s = this.state;
     const subtotal = this.subtotal();
-    const lines = Object.keys(s.cart).map((id) => {
-      const p = this.catalog().find((x) => x.id === id);
-      const qty = s.cart[id];
-      return { name: p.name, qty, lineLabel: this.fmt(p.price * qty) };
-    });
+    const lines = this.cartLines().map((l) => ({ name: this.lineName(l), qty: l.qty, lineLabel: this.fmt(l.total) }));
     // Checkout doesn't collect real payment yet (no סליקה set up) — routing
     // straight to WhatsApp instead of the old order form avoids customers
     // thinking they've completed a real purchase.
@@ -1487,7 +1703,7 @@ class App {
           <h2 style="font-size: 20px; font-weight: 400">התמונה בסיפור העסק</h2>
           <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שמופיעה לצד הסיפור בדף הבית. פריים אנכי מתאים לה — היחס בעמוד הוא ארבע על חמש. את הטקסט עצמו משנים בלשונית ניהול האתר.</p>
           <label class="btn btn-secondary" for="a-story-img-1" style="align-self: flex-start; cursor: pointer; margin-top: 4px; ${s.storyImgStatus1 === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.storyImgStatus1 === 'uploading' ? 'מעלה…' : 'החלפת תמונה'}</label>
-          <input type="file" id="a-story-img-1" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-story-img-file="1" style="display: none">
+          <input type="file" id="a-story-img-1" accept="image/*,.heic,.heif" data-story-img-file="1" style="display: none">
           ${s.storyImgStatus1 === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי תוך כדקה.</p>` : ''}
           ${s.storyImgStatus1 === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.storyImgError1)}</p>` : ''}
         </div>
@@ -1499,10 +1715,26 @@ class App {
           <h2 style="font-size: 20px; font-weight: 400">התמונה השנייה בסיפור</h2>
           <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שיושבת מתחת לסיפור, מול ההסבר על הקוקודמה.</p>
           <label class="btn btn-secondary" for="a-story-img-2" style="align-self: flex-start; cursor: pointer; margin-top: 4px; ${s.storyImgStatus2 === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.storyImgStatus2 === 'uploading' ? 'מעלה…' : 'החלפת תמונה'}</label>
-          <input type="file" id="a-story-img-2" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-story-img-file="2" style="display: none">
+          <input type="file" id="a-story-img-2" accept="image/*,.heic,.heif" data-story-img-file="2" style="display: none">
           ${s.storyImgStatus2 === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי תוך כדקה.</p>` : ''}
           ${s.storyImgStatus2 === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.storyImgError2)}</p>` : ''}
         </div>
+      </div>
+      <div class="card" style="padding: clamp(18px, 2.4vw, 26px); gap: 14px; margin-top: 16px">
+        <span class="card-kicker">לכל המוצרים</span>
+        <h2 style="font-size: 20px; font-weight: 400">גודלי סטנד</h2>
+        <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700); max-width: 62ch">הגדלים שהלקוח בוחר מהם בעמוד המוצר. תוספת מחיר היא סכום שמתווסף למחיר הצמח — 0 אם הסטנד לא משנה את המחיר. בעריכת כל מוצר אפשר לבחור אילו מהגדלים זמינים לו. השינויים נשמרים אוטומטית.</p>
+        ${s.stands.length ? `
+        <div style="display: flex; flex-direction: column; gap: 10px; max-width: 560px">
+          <div class="stand-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>שם הגודל</span><span>תוספת מחיר (₪)</span><span></span></div>
+          ${s.stands.map((x) => `
+          <div class="stand-row">
+            <input class="input" id="stand-label-${esc(x.id)}" data-stand-label="${esc(x.id)}" value="${esc(x.label)}" aria-label="שם הגודל">
+            <input class="input" id="stand-price-${esc(x.id)}" data-stand-price="${esc(x.id)}" type="number" min="0" step="1" value="${this.standPrice(x)}" aria-label="תוספת מחיר לגודל ${esc(x.label)}" style="font-variant-numeric: tabular-nums">
+            <button class="btn btn-ghost" data-act="standRemove" data-id="${esc(x.id)}" style="border: 0; font-size: 13px">הסרה</button>
+          </div>`).join('')}
+        </div>` : `<p style="margin: 0; font-size: 13.5px; color: var(--color-neutral-600)">אין גדלים מוגדרים — המוצרים יימכרו בלי בחירת סטנד.</p>`}
+        <button class="btn btn-secondary" data-act="standAdd" style="align-self: flex-start; gap: 8px">${ICON.plus15}<span>הוספת גודל</span></button>
       </div>
 
       ${s.catalogSyncStatus === 'saving' ? `<p style="margin: 18px 0 0; font-size: 12.5px; color: var(--color-neutral-600)">שומר שינויים…</p>`
@@ -1535,7 +1767,7 @@ class App {
             return `
           <tr>
             <td><span style="display: flex; align-items: center; gap: 12px">
-              <span role="img" aria-label="${esc(p.name)}" style="position: relative; width: 40px; height: 50px; flex: 0 0 auto; border: 1px solid var(--color-divider); background-color: var(--color-neutral-200); background-image: ${p.img ? `url('${p.img}${p.imgV ? '?v=' + p.imgV : ''}')` : 'none'}; ${this.imgBgStyle(p)}; display: block"></span>
+              <span role="img" aria-label="${esc(p.name)}" style="position: relative; width: 40px; height: 50px; flex: 0 0 auto; border: 1px solid var(--color-divider); background-color: var(--color-neutral-200); background-image: ${p.img ? `url('${p.img}')` : 'none'}; ${this.imgBgStyle(this.mainImg(p))}; display: block"></span>
               <span>
                 <button data-act="admEdit" data-id="${p.id}" style="background: none; border: 0; padding: 0; font-family: var(--font-body); font-size: inherit; color: inherit; cursor: pointer; text-align: start; text-decoration: underline; text-decoration-color: var(--color-neutral-400)">${esc(p.name)}</button>
                 ${p.isNew ? `<span class="tag tag-accent" style="margin-inline-start: 8px">חדש</span>` : ''}
@@ -1720,8 +1952,10 @@ class App {
     const nf = s.nf;
     const editingProd = s.editId ? this.catalog().find((x) => x.id === s.editId) : null;
     const uploadTargetId = s.editId || s.nfNewId;
-    const imgSrc = s.nfImgStatus === 'done' && uploadTargetId ? BLOB_IMG_BASE + uploadTargetId + '.jpg' + '?v=' + s.nfImgBust
-      : (editingProd && editingProd.img) ? editingProd.img + '?v=' + (editingProd.imgV || s.nfImgBust || 0) : '';
+    const imgs = s.nfImages;
+    const sel = imgs[s.nfImgSel] || null;
+    const uploading = s.nfImgStatus === 'uploading';
+    const prog = s.nfImgProgress || { done: 0, total: 0 };
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -1745,35 +1979,56 @@ class App {
           <div class="field"><label for="a-water">השקיה</label><input class="input" id="a-water" data-nf-field="water" value="${esc(nf.water)}" placeholder="טבילה אחת לשבוע"></div>
           <div class="field" style="grid-column: 1 / -1"><label for="a-desc">תיאור</label><textarea class="input" id="a-desc" data-nf-field="desc" placeholder="שתי שורות על הצמח ועל הטיפול בו">${esc(nf.desc)}</textarea></div>
         </div>
-        <div style="display: grid; grid-template-columns: 132px 1fr; gap: 18px; align-items: start">
-          <div class="plate" data-img-frame="1" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; background: var(--color-neutral-200); ${imgSrc && s.nfImgFit !== 'contain' ? 'cursor: grab; touch-action: none' : ''}">
-            ${imgSrc ? `<img src="${esc(imgSrc)}" alt="" draggable="false" style="width: 100%; height: 100%; object-fit: ${s.nfImgFit}; object-position: ${s.nfImgPos}; display: block; user-select: none; -webkit-user-drag: none">` : `<div style="width: 100%; height: 100%; display: grid; place-items: center; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.18em; color: var(--color-neutral-800)">תמונה</div>`}
+        <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 4px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+            <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent)">תמונות</span>
+            <span style="font-size: 12px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${imgs.length ? `${imgs.length} ${imgs.length === 1 ? 'תמונה' : 'תמונות'} · הראשונה היא זו שמוצגת בקטלוג` : 'עדיין אין תמונות'}</span>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 10px">
-            ${uploadTargetId ? `
-            <label class="btn btn-secondary" for="a-img-file" style="align-self: flex-start; cursor: pointer; ${s.nfImgStatus === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.nfImgStatus === 'uploading' ? 'מעלה…' : (imgSrc ? 'החלפת תמונה' : 'הוספת תמונה')}</label>
-            <input type="file" id="a-img-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-nf-img-file="1" style="display: none">
-            ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${s.editId ? 'התמונה הועלתה — אחרי לחיצה על "שמירה" היא תופיע מיד באתר החי, לכל המבקרים.' : 'התמונה הועלתה, תישמר עם המוצר.'}</p>` : ''}
-            ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.nfImgError)}</p>` : ''}
-            ${imgSrc ? `
-            <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 4px">
-              <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent)">איך התמונה יושבת במסגרת</span>
+          ${sel ? `
+          <div style="display: grid; grid-template-columns: 132px 1fr; gap: 18px; align-items: start">
+            <div class="plate" data-img-frame="1" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; background: var(--color-neutral-200); ${this.fitOf(sel) !== 'contain' ? 'cursor: grab; touch-action: none' : ''}">
+              <img src="${esc(sel.url)}" alt="" draggable="false" style="width: 100%; height: 100%; ${this.imgTagStyle(sel)}; display: block; user-select: none; -webkit-user-drag: none">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent)">${imgs.length > 1 ? `תמונה ${s.nfImgSel + 1} — איך היא יושבת במסגרת` : 'איך התמונה יושבת במסגרת'}</span>
               <div class="seg" style="align-self: flex-start">
-                <button class="seg-opt" data-act="nfFitCover" aria-pressed="${s.nfImgFit !== 'contain'}" style="background: ${s.nfImgFit !== 'contain' ? 'var(--color-accent-100)' : 'transparent'}; color: ${s.nfImgFit !== 'contain' ? 'var(--color-accent-800)' : 'var(--color-text)'}">ממלאת את המסגרת</button>
-                <button class="seg-opt" data-act="nfFitContain" aria-pressed="${s.nfImgFit === 'contain'}" style="background: ${s.nfImgFit === 'contain' ? 'var(--color-accent-100)' : 'transparent'}; color: ${s.nfImgFit === 'contain' ? 'var(--color-accent-800)' : 'var(--color-text)'}">התמונה כולה</button>
+                <button class="seg-opt" data-act="nfFitCover" aria-pressed="${this.fitOf(sel) !== 'contain'}" style="background: ${this.fitOf(sel) !== 'contain' ? 'var(--color-accent-100)' : 'transparent'}; color: ${this.fitOf(sel) !== 'contain' ? 'var(--color-accent-800)' : 'var(--color-text)'}">ממלאת את המסגרת</button>
+                <button class="seg-opt" data-act="nfFitContain" aria-pressed="${this.fitOf(sel) === 'contain'}" style="background: ${this.fitOf(sel) === 'contain' ? 'var(--color-accent-100)' : 'transparent'}; color: ${this.fitOf(sel) === 'contain' ? 'var(--color-accent-800)' : 'var(--color-text)'}">התמונה כולה</button>
               </div>
-              ${s.nfImgFit === 'contain'
+              ${this.fitOf(sel) === 'contain'
                 ? `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">התמונה תוצג במלואה, בלי חיתוך. השוליים שנשארים יתמלאו ברקע.</p>`
                 : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">גוררים את התמונה בתצוגה המקדימה כדי לבחור איזה חלק שלה יישאר בתוך המסגרת. <button class="btn btn-ghost" data-act="nfPosCenter" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">מרכוז</button></p>`}
-            </div>` : ''}
-            <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">JPG, PNG, WEBP או תמונת אייפון (HEIC) — התמונה תותאם אוטומטית לגודל המתאים לאתר.</p>
-            ` : ''}
-            ${editingProd && (editingProd.model || editingProd.embed) ? `
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--color-divider)">
-              <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-700)">במוצר הזה מוצג מודל תלת־ממדי במקום התמונה. אחרי הסרתו תוצג התמונה שהעליתם.</p>
-              <button class="btn btn-secondary" data-act="nfDropModel" style="align-self: flex-start">הסרת המודל התלת־ממדי</button>
-            </div>` : ''}
+              <div style="display: flex; gap: 14px; flex-wrap: wrap; padding-top: 2px">
+                ${s.nfImgSel > 0 ? `<button class="btn btn-ghost" data-act="nfImgMain" data-id="${s.nfImgSel}" style="border: 0; padding: 0; font-size: 13px">הצגה ראשונה בקטלוג</button>` : ''}
+                <button class="btn btn-ghost" data-act="nfImgRemove" data-id="${s.nfImgSel}" style="border: 0; padding: 0; font-size: 13px; color: #b3261e">הסרת התמונה</button>
+              </div>
+            </div>
+          </div>` : ''}
+          ${uploadTargetId ? `
+          <div class="nf-thumbs">
+            ${imgs.map((im, i) => `<button class="nf-thumb${i === s.nfImgSel ? ' is-on' : ''}" data-act="nfImgPick" data-id="${i}" aria-label="תמונה ${i + 1}${i === 0 ? ' (ראשית)' : ''}" aria-pressed="${i === s.nfImgSel}" style="background-image: url('${esc(im.url)}'); ${this.imgBgStyle(im)}">${i === 0 ? '<span class="nf-thumb-main">ראשית</span>' : ''}</button>`).join('')}
+            <label class="nf-thumb nf-thumb-add" for="a-img-file" style="${uploading ? 'opacity: 0.5; pointer-events: none' : ''}" aria-label="הוספת תמונות">${ICON.plus15}<span>${imgs.length ? 'עוד' : 'הוספה'}</span></label>
+            <input type="file" id="a-img-file" accept="image/*,.heic,.heif" multiple data-nf-img-file="1" style="display: none">
           </div>
+          ${uploading ? `<p style="margin: 0; font-size: 13px; color: var(--color-neutral-700)" role="status">מעלה תמונה ${Math.min(prog.done + 1, prog.total)} מתוך ${prog.total}…${prog.converting ? ' ממיר תמונת HEIC, זה יכול לקחת עד דקה.' : ''}</p>` : ''}
+          ${s.nfImgStatus === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)" role="status">${s.editId ? 'התמונות נוספו — הן יופיעו באתר אחרי לחיצה על "שמירת שינויים".' : 'התמונות נוספו ויישמרו עם המוצר.'}</p>` : ''}
+          ${s.nfImgStatus === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e" role="alert">${esc(s.nfImgError)}</p>` : ''}
+          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">אפשר לבחור כמה תמונות בבת אחת. JPG, PNG, WEBP או תמונת אייפון (HEIC) — כל תמונה מוקטנת אוטומטית לפני ההעלאה.</p>
+          ` : ''}
+          ${editingProd && (editingProd.model || editingProd.embed) ? `
+          <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--color-divider)">
+            <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-700)">במוצר הזה מוצג מודל תלת־ממדי במקום התמונה. אחרי הסרתו תוצג התמונה שהעליתם.</p>
+            <button class="btn btn-secondary" data-act="nfDropModel" style="align-self: flex-start">הסרת המודל התלת־ממדי</button>
+          </div>` : ''}
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--color-divider)">
+          <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent)">גודלי סטנד למוצר הזה</span>
+          ${s.stands.length ? `
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            ${s.stands.map((x) => { const on = !Array.isArray(s.nfStands) || s.nfStands.includes(x.id); return `<label class="chip-check${on ? ' is-on' : ''}"><input type="checkbox" data-act="nfStandToggle" data-id="${esc(x.id)}" ${on ? 'checked' : ''}><span>${esc(x.label)}${this.standPrice(x) ? ` · +${this.fmt(this.standPrice(x))}` : ''}</span></label>`; }).join('')}
+          </div>
+          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">הלקוח יבחר מבין הגדלים המסומנים. בלי אף סימון — המוצר נמכר בלי בחירת סטנד.</p>`
+          : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">עדיין לא הוגדרו גודלי סטנד. מוסיפים אותם בטאב "מוצרים ומלאי".</p>`}
         </div>
       </div>
       <div style="border-top: 1px solid var(--color-divider); padding: 20px 26px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--color-bg)">
