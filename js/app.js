@@ -195,6 +195,7 @@ class App {
       case 'access': return '#/access';
       case 'terms': return '#/terms';
       case 'care': return '#/care';
+      case 'careItem': return '#/care/' + encodeURIComponent(s.careId);
       case 'shipping': return '#/shipping';
       default: return null; // admin screens stay out of the URL
     }
@@ -207,6 +208,7 @@ class App {
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
     if (parts[0] === 'terms') return { screen: 'terms' };
+    if (parts[0] === 'care' && parts[1]) return { screen: 'careItem', careId: parts[1], prodImg: 0 };
     if (parts[0] === 'care') return { screen: 'care' };
     if (parts[0] === 'shipping') return { screen: 'shipping' };
     if (parts[0] === 'admin' && parts[1] === 'orders' && parts[2]) {
@@ -558,7 +560,8 @@ class App {
     });
   }
   stepProdImg(step) {
-    const p = this.catalog().find((x) => x.id === this.state.prod);
+    const pid = this.state.screen === 'careItem' ? this.state.careId : this.state.prod;
+    const p = this.catalog().find((x) => x.id === pid);
     const n = p ? p.images.length : 0;
     if (n < 2) return;
     this.setState((st) => ({ prodImg: (st.prodImg + step + n) % n }));
@@ -576,6 +579,7 @@ class App {
       case 'goHome': this.nav({ screen: 'home', navOpen: false }); break;
       case 'goKokedama': this.nav({ screen: 'category', cat: 'kokedama', navOpen: false }); break;
       case 'goCare': this.nav({ screen: 'care', navOpen: false }); break;
+      case 'openCare': this.nav({ screen: 'careItem', careId: id, prodImg: 0 }); break;
       case 'goHydro': this.nav({ screen: 'category', cat: 'hydro', navOpen: false }); break;
       case 'goCheckout': this.nav({ screen: 'checkout', open: false }); break;
       case 'goAdmin': this.nav(s.admAuthed ? { screen: 'admin' } : { screen: 'adminGate', admPass: '', admGateError: false }); break;
@@ -918,6 +922,7 @@ class App {
           ${s.screen === 'access' ? this.renderAccess() : ''}
           ${s.screen === 'terms' ? this.renderTerms() : ''}
           ${s.screen === 'care' ? this.renderCareGuide() : ''}
+          ${s.screen === 'careItem' ? this.renderCareItem() : ''}
           ${s.screen === 'shipping' ? this.renderShippingPolicy() : ''}
           ${s.screen === 'adminGate' ? this.renderAdminGate() : ''}
           ${s.screen === 'admin' ? this.renderAdmin() : ''}
@@ -1008,6 +1013,7 @@ class App {
         <a href="#" data-act="goHome">דף הבית</a>
         <a href="#" data-act="goKokedama">קוקודמות</a>
         <a href="#" data-act="goHydro">הידרופוני</a>
+        <a href="#" data-act="goCare">מדריך טיפול</a>
       </nav>
       <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="margin-inline-start: auto; color: #25D366">${ICON.whatsapp}</a>
       <button class="btn btn-secondary btn-icon" data-act="toggleNav" aria-label="פתיחת תפריט" aria-expanded="${s.navOpen}" style="display: var(--menu-btn-display, none)">${ICON.menu}</button>
@@ -1030,6 +1036,7 @@ class App {
         <a href="#" data-act="goHome" style="padding: 15px 16px">דף הבית</a>
         <a href="#" data-act="goKokedama" style="padding: 15px 16px">קוקודמות</a>
         <a href="#" data-act="goHydro" style="padding: 15px 16px">הידרופוני</a>
+        <a href="#" data-act="goCare" style="padding: 15px 16px">מדריך טיפול</a>
       </nav>
     </aside>`;
   }
@@ -1051,6 +1058,7 @@ class App {
         </div>
         <div style="display: flex; flex-direction: column; gap: 11px; min-width: 0">
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.28em; color: var(--color-accent-700)">מידע</span>
+          <a href="#" data-act="goCare">מדריך טיפול</a>
           <a href="#" data-act="goTerms">תקנון, ביטולים ופרטיות</a>
           <a href="#" data-act="goShipping">משלוחים והחזרות</a>
           <a href="#" data-act="goAccess">הצהרת נגישות</a>
@@ -1349,20 +1357,45 @@ class App {
     </div>`;
   }
   careCard(p) {
-    const img = this.mainImg(p);
     return `
-      <a href="#/product/${encodeURIComponent(p.id)}" class="care-card" data-act="open" data-id="${esc(p.id)}">
-        <span class="plate care-photo" style="background-image: ${p.img ? `url('${esc(p.img)}')` : 'none'}; ${this.imgBgStyle(img)}">
+      <a href="#/care/${encodeURIComponent(p.id)}" class="care-card" data-act="openCare" data-id="${esc(p.id)}">
+        <span class="plate care-photo" style="background-image: ${p.img ? `url('${esc(p.img)}')` : 'none'}; ${this.imgBgStyle(this.mainImg(p))}">
           ${p.img ? '' : '<span class="care-nophoto">בצילום</span>'}
         </span>
         <span class="care-name">${esc(p.name)}</span>
-        <span class="care-desc">${esc(p.desc)}</span>
-        <span class="care-facts">
-          <span><span class="care-k">אור</span><span>${esc(p.light)}</span></span>
-          <span><span class="care-k">השקיה</span><span>${esc(p.water)}</span></span>
-        </span>
-        <span class="care-more">למדריך המלא<span aria-hidden="true">${ICON.crumb}</span></span>
       </a>`;
+  }
+  // One plant's care page: its photos, what it is and how to keep it. No
+  // price, stand or cart — this is for after the purchase, not the shop.
+  renderCareItem() {
+    const s = this.state;
+    const prod = this.catalog().find((x) => x.id === s.careId);
+    if (!prod) return this.renderCareGuide();
+    return `
+    <div data-screen-label="מדריך טיפול — ${esc(prod.name)}">
+      <nav style="padding: 22px var(--pg); font-size: 13px; color: var(--color-neutral-600); display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+        <a href="#" data-act="goHome">בית</a><span style="opacity: 0.5">${ICON.crumb}</span>
+        <a href="#" data-act="goCare">מדריך טיפול</a><span style="opacity: 0.5">${ICON.crumb}</span>
+        <span>${esc(prod.name)}</span>
+      </nav>
+      <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 56px; padding: 12px var(--pg) 80px; align-items: start; max-width: 1180px; margin-inline: auto">
+        <div style="display: grid; gap: 14px; min-width: 0">${this.renderGallery(prod)}</div>
+        <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 10px">
+          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך טיפול · ${prod.cat === 'hydro' ? 'הידרופוני' : 'קוקודמה'}</span>
+          <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; line-height: 1.14">${esc(prod.name)}</h1>
+          <p style="margin: 0; font-size: 16px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(this.careText(prod))}</p>
+          <hr class="hr">
+          <table class="table">
+            <tbody>
+              <tr><td style="color: var(--color-neutral-600); width: 34%">גודל</td><td>${esc(prod.size)}</td></tr>
+              <tr><td style="color: var(--color-neutral-600)">אור</td><td>${esc(prod.light)}</td></tr>
+              <tr><td style="color: var(--color-neutral-600)">השקיה</td><td>${esc(prod.water)}</td></tr>
+            </tbody>
+          </table>
+          <a href="#" data-act="goCare" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; margin-top: 6px"><span style="display: block; transform: scaleX(-1)">${ICON.crumb}</span>לכל הצמחים במדריך</a>
+        </div>
+      </section>
+    </div>`;
   }
 
   // ── CATEGORY ─────────────────────────────────────────────────────────
@@ -1390,6 +1423,31 @@ class App {
     </div>`;
   }
 
+  // Photo + arrows + thumbnails, shared by the product page and the care
+  // page. Both show one product at a time, so they share the prodImg index.
+  renderGallery(prod) {
+    const s = this.state;
+    const imgs = prod.images;
+    const idx = Math.min(s.prodImg || 0, Math.max(0, imgs.length - 1));
+    const cur = imgs[idx];
+    return `
+          <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
+            ${cur ? `<img src="${esc(cur.url)}" alt="${esc(prod.name)}${imgs.length > 1 ? ` — תמונה ${idx + 1} מתוך ${imgs.length}` : ''}" style="${this.imgTagStyle(cur)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
+            ${imgs.length > 1 ? `
+            <button class="gal-nav" data-act="prodImgStep" data-step="-1" aria-label="התמונה הקודמת" style="inset-inline-start: 10px"><span style="display: block; transform: scaleX(-1)">${ICON.crumb}</span></button>
+            <button class="gal-nav" data-act="prodImgStep" data-step="1" aria-label="התמונה הבאה" style="inset-inline-end: 10px">${ICON.crumb}</button>
+            <span class="gal-count" aria-hidden="true">${idx + 1} / ${imgs.length}</span>` : ''}
+          </div>
+          ${imgs.length > 1 ? `
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; max-width: 420px">
+            ${imgs.map((im, i) => `<button class="gal-thumb${i === idx ? ' is-on' : ''}" data-act="prodImg" data-id="${i}" aria-label="תמונה ${i + 1}" aria-pressed="${i === idx}" style="background-image: url('${esc(im.url)}'); ${this.imgBgStyle(im)}"></button>`).join('')}
+          </div>` : ''}`;
+  }
+  careText(prod) {
+    return prod.desc + (prod.cat === 'hydro'
+      ? ' הצמח מגיע בכלי זכוכית עם רשת שורשים ואבני חלוקים. מחליפים מים כל שבועיים ומוסיפים שתי טיפות תמיסת מזון, ומשאירים את שליש השורשים העליון חשוף לאוויר.'
+      : ' הכריכה נעשית ביד בכרית קוקוס וטחב ספגנום, בקוטר המתאים לגודל הצמח, וקשורה בחוט כותנה. משקים בטבילה, בלי אדמה ובלי עציץ.');
+  }
   // ── PRODUCT ──────────────────────────────────────────────────────────
   renderProductScreen() {
     const s = this.state;
@@ -1403,15 +1461,10 @@ class App {
       .sort((a, b) => (a.water === prod.water ? 0 : 1) - (b.water === prod.water ? 0 : 1))
       .slice(0, 3);
     if (prod.model) this.loadModelViewer().catch(() => {});
-    const imgs = prod.images;
-    const idx = Math.min(s.prodImg || 0, Math.max(0, imgs.length - 1));
-    const cur = imgs[idx];
     const stands = this.standsFor(prod);
     const stand = this.selectedStand(prod);
     const unitPrice = prod.price + this.standPrice(stand);
-    const desc = prod.desc + (prod.cat === 'hydro'
-      ? ' הצמח מגיע בכלי זכוכית עם רשת שורשים ואבני חלוקים. מחליפים מים כל שבועיים ומוסיפים שתי טיפות תמיסת מזון, ומשאירים את שליש השורשים העליון חשוף לאוויר.'
-      : ' הכריכה נעשית ביד בכרית קוקוס וטחב ספגנום, בקוטר המתאים לגודל הצמח, וקשורה בחוט כותנה. משקים בטבילה, בלי אדמה ובלי עציץ.');
+    const desc = this.careText(prod);
     return `
     <div data-screen-label="מוצר">
       <nav style="padding: 22px var(--pg); font-size: 13px; color: var(--color-neutral-600); display: flex; gap: 8px; align-items: center">
@@ -1432,17 +1485,7 @@ class App {
           </div>
           <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-600)">סריקה תלת־ממדית — מסתובבת לבד, ואפשר לגרור כדי לסובב ידנית.</p>
           ` : `
-          <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden; background: var(--color-neutral-200)">
-            ${cur ? `<img src="${esc(cur.url)}" alt="${esc(prod.name)}${imgs.length > 1 ? ` — תמונה ${idx + 1} מתוך ${imgs.length}` : ''}" style="${this.imgTagStyle(cur)}">` : `<span style="position:absolute; inset:0; display:grid; place-items:center; font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.22em; color: var(--color-neutral-800)">בצילום</span>`}
-            ${imgs.length > 1 ? `
-            <button class="gal-nav" data-act="prodImgStep" data-step="-1" aria-label="התמונה הקודמת" style="inset-inline-start: 10px"><span style="display: block; transform: scaleX(-1)">${ICON.crumb}</span></button>
-            <button class="gal-nav" data-act="prodImgStep" data-step="1" aria-label="התמונה הבאה" style="inset-inline-end: 10px">${ICON.crumb}</button>
-            <span class="gal-count" aria-hidden="true">${idx + 1} / ${imgs.length}</span>` : ''}
-          </div>
-          ${imgs.length > 1 ? `
-          <div style="display: flex; gap: 8px; flex-wrap: wrap; max-width: 420px">
-            ${imgs.map((im, i) => `<button class="gal-thumb${i === idx ? ' is-on' : ''}" data-act="prodImg" data-id="${i}" aria-label="תמונה ${i + 1}" aria-pressed="${i === idx}" style="background-image: url('${esc(im.url)}'); ${this.imgBgStyle(im)}"></button>`).join('')}
-          </div>` : ''}`}
+          ${this.renderGallery(prod)}`}
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 10px">
