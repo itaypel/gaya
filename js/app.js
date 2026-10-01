@@ -105,24 +105,23 @@ class App {
       const past = window.scrollY > 64;
       if (past !== this.state.scrolled) { this.state.scrolled = past; this.render(); }
     }, { passive: true });
-    // A push-notification click navigates an already-open tab via the
-    // service worker's Client.navigate(), which changes the hash without
-    // going through history back/forward — that fires 'hashchange', not
-    // 'popstate', so both are handled the same way here.
-    const onHashRoute = () => {
-      const route = this.parseRoute(location.hash);
+    // Pages have real addresses (/care/p2). Links from before that change
+    // still say /#/care/p2 — printed tags, old notifications — so a #/ address
+    // is read the same way and then swapped for the clean one.
+    const onRoute = () => {
+      const route = this.parseRoute(this.currentRoutePath());
       if (!route) return;
       Object.assign(this.state, route);
       this.render();
       window.scrollTo(0, 0);
+      this.syncUrl(true);
       if (this.state.screen === 'admin' && this.state.admTab === 'orders') this.loadOrders();
     };
-    window.addEventListener('popstate', onHashRoute);
-    window.addEventListener('hashchange', onHashRoute);
-    const initialRoute = this.parseRoute(location.hash);
+    window.addEventListener('popstate', onRoute);
+    window.addEventListener('hashchange', () => { if (location.hash.startsWith('#/')) onRoute(); });
+    const initialRoute = this.parseRoute(this.currentRoutePath());
     if (initialRoute) Object.assign(this.state, initialRoute);
-    const initialHash = this.routeFromState(this.state);
-    if (initialHash && location.hash !== initialHash) history.replaceState(null, '', initialHash);
+    this.syncUrl(true);
     this.render();
     if (this.state.screen === 'admin' && this.state.admTab === 'orders') this.loadOrders();
     this._catalogLoadPromise = this.loadCatalogOverrides();
@@ -186,20 +185,31 @@ class App {
   }
   routeFromState(s) {
     switch (s.screen) {
-      case 'home': return '#/';
-      case 'category': return '#/category/' + (s.cat === 'hydro' ? 'hydro' : 'kokedama');
-      case 'product': return '#/product/' + encodeURIComponent(s.prod);
-      case 'checkout': return '#/checkout';
-      case 'access': return '#/access';
-      case 'terms': return '#/terms';
-      case 'care': return '#/care';
-      case 'careItem': return '#/care/' + encodeURIComponent(s.careId);
-      case 'shipping': return '#/shipping';
+      case 'home': return '/';
+      case 'category': return '/category/' + (s.cat === 'hydro' ? 'hydro' : 'kokedama');
+      case 'product': return '/product/' + encodeURIComponent(s.prod);
+      case 'checkout': return '/checkout';
+      case 'access': return '/access';
+      case 'terms': return '/terms';
+      case 'care': return '/care';
+      case 'careItem': return '/care/' + encodeURIComponent(s.careId);
+      case 'shipping': return '/shipping';
       default: return null; // admin screens stay out of the URL
     }
   }
-  parseRoute(hash) {
-    const parts = String(hash || '').replace(/^#\/?/, '').split('/').filter(Boolean).map((p) => decodeURIComponent(p));
+  currentRoutePath() {
+    return location.hash.startsWith('#/') ? location.hash.slice(1) : location.pathname;
+  }
+  // Put the canonical address for the current screen in the bar. replace is
+  // for corrections (old #/ links, unknown paths); a real move pushes.
+  syncUrl(replace) {
+    const route = this.routeFromState(this.state);
+    if (!route) return;
+    if (location.pathname === route && !location.hash) return;
+    history[replace ? 'replaceState' : 'pushState'](null, '', route);
+  }
+  parseRoute(path) {
+    const parts = String(path || '').replace(/^#/, '').replace(/^\/+/, '').split('/').filter(Boolean).map((p) => decodeURIComponent(p));
     if (parts.length === 0) return { screen: 'home' };
     if (parts[0] === 'category') return { screen: 'category', cat: parts[1] === 'hydro' ? 'hydro' : 'kokedama' };
     if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1], prodImg: 0, prodStand: null };
@@ -225,8 +235,7 @@ class App {
   nav(patch) {
     this.setState(patch);
     window.scrollTo(0, 0);
-    const route = this.routeFromState(this.state);
-    if (route && location.hash !== route) history.pushState(null, '', route);
+    this.syncUrl(false);
   }
 
   // ── data helpers (ported 1:1) ──────────────────────────────────────────
@@ -814,7 +823,7 @@ class App {
     if (!this._qrLibPromise) {
       this._qrLibPromise = new Promise((resolve, reject) => {
         const el = document.createElement('script');
-        el.src = 'assets/vendor/qrcode.min.js';
+        el.src = '/assets/vendor/qrcode.min.js';
         el.onload = resolve;
         el.onerror = () => { this._qrLibPromise = null; reject(new Error('qr lib failed')); };
         document.head.appendChild(el);
@@ -830,7 +839,7 @@ class App {
       this._mvPromise = new Promise((resolve, reject) => {
         const el = document.createElement('script');
         el.type = 'module';
-        el.src = 'js/vendor/model-viewer.min.js';
+        el.src = '/js/vendor/model-viewer.min.js';
         el.onload = resolve;
         el.onerror = () => { this._mvPromise = null; reject(new Error('model-viewer failed')); };
         document.head.appendChild(el);
@@ -1308,7 +1317,7 @@ class App {
     </div>`;
   }
 
-  // ── CARE GUIDE (#/care) ──────────────────────────────────────────────
+  // ── CARE GUIDE (/care) ───────────────────────────────────────────────
   // For someone who already has the plant: pick it, read how to keep it.
   // Same photos as the catalog, but no price or cart — each card leads to
   // the plant's page, where the full care notes live.
@@ -1339,7 +1348,7 @@ class App {
   }
   careCard(p) {
     return `
-      <a href="#/care/${encodeURIComponent(p.id)}" class="care-card" data-act="openCare" data-id="${esc(p.id)}">
+      <a href="/care/${encodeURIComponent(p.id)}" class="care-card" data-act="openCare" data-id="${esc(p.id)}">
         <span class="plate care-photo" style="background-image: ${p.img ? `url('${esc(p.img)}')` : 'none'}; ${this.imgBgStyle(this.mainImg(p))}">
           ${p.img ? '' : '<span class="care-nophoto">בצילום</span>'}
         </span>

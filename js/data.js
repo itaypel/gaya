@@ -82,4 +82,4 @@ const SITE_URL = 'https://gayaplants.com/';
 
 const STORY_IMG_1 = BLOB_IMG_BASE + 'story1.jpg';
 const STORY_IMG_2 = BLOB_IMG_BASE + 'story2.jpg';
-const LOGO_IMG = 'assets/images/gaya-logo.png';
+const LOGO_IMG = '/assets/images/gaya-logo.png';
