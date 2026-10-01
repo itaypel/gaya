@@ -5,7 +5,7 @@ const MAX_BYTES = 200 * 1024;
 // Mirrors the SITE keys in js/data.js — an allowlist so this endpoint can
 // only ever overwrite known site-copy fields, never arbitrary keys.
 const SITE_KEYS = [
-  'heroKicker', 'heroTitle', 'heroBody', 'heroCta1', 'careTitle', 'careSub',
+  'heroKicker', 'heroTitle', 'heroBody', 'heroCta1', 'heroCta2', 'careTitle', 'careSub',
   'storyKicker', 'storyTitle', 'storyIntro', 'storyFounders', 'kokedamaQ', 'kokedamaA',
   'beyondKicker', 'beyondTitle', 'beyondIntro',
   'series1H', 'series1B', 'series2H', 'series2B', 'series3H', 'series3B',

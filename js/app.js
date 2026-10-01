@@ -194,6 +194,7 @@ class App {
       case 'checkout': return '#/checkout';
       case 'access': return '#/access';
       case 'terms': return '#/terms';
+      case 'care': return '#/care';
       case 'shipping': return '#/shipping';
       default: return null; // admin screens stay out of the URL
     }
@@ -206,6 +207,7 @@ class App {
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
     if (parts[0] === 'terms') return { screen: 'terms' };
+    if (parts[0] === 'care') return { screen: 'care' };
     if (parts[0] === 'shipping') return { screen: 'shipping' };
     if (parts[0] === 'admin' && parts[1] === 'orders' && parts[2]) {
       // Deep link from a push notification — jump straight past the tab
@@ -558,6 +560,7 @@ class App {
     switch (act) {
       case 'goHome': this.nav({ screen: 'home', navOpen: false }); break;
       case 'goKokedama': this.nav({ screen: 'category', cat: 'kokedama', navOpen: false }); break;
+      case 'goCare': this.nav({ screen: 'care', navOpen: false }); break;
       case 'goHydro': this.nav({ screen: 'category', cat: 'hydro', navOpen: false }); break;
       case 'goCheckout': this.nav({ screen: 'checkout', open: false }); break;
       case 'goAdmin': this.nav(s.admAuthed ? { screen: 'admin' } : { screen: 'adminGate', admPass: '', admGateError: false }); break;
@@ -891,6 +894,7 @@ class App {
           ${s.screen === 'orderThanks' ? this.renderOrderThanks() : ''}
           ${s.screen === 'access' ? this.renderAccess() : ''}
           ${s.screen === 'terms' ? this.renderTerms() : ''}
+          ${s.screen === 'care' ? this.renderCareGuide() : ''}
           ${s.screen === 'shipping' ? this.renderShippingPolicy() : ''}
           ${s.screen === 'adminGate' ? this.renderAdminGate() : ''}
           ${s.screen === 'admin' ? this.renderAdmin() : ''}
@@ -1220,15 +1224,15 @@ class App {
           <p style="font-size: clamp(15px, 1.2vw, 17.5px); line-height: 1.9; margin: 0; color: var(--color-neutral-700)">${esc(site.heroBody)}</p>
           <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; justify-content: center">
             <button class="btn btn-primary" data-act="goKokedama" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta1)}</button>
+            <button class="btn btn-primary" data-act="goCare" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta2)}</button>
           </div>
         </div>
       </section>
 
-      ${this.renderCareGuide()}
 
       <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider); max-width: 1180px; margin-inline: auto">
         <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 34px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">II</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">I</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.storyKicker)}</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: clamp(30px, 4vw, 60px); align-items: stretch">
@@ -1251,7 +1255,7 @@ class App {
 
       <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider)">
         <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 30px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">III</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">II</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.beyondKicker)}</span>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: clamp(28px, 4vw, 60px); align-items: start">
@@ -1274,7 +1278,7 @@ class App {
 
       <section style="padding: clamp(44px, 6vw, 68px) var(--pg) 30px; border-top: 1px solid var(--color-divider)">
         <div style="display: flex; align-items: baseline; gap: 18px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">IV</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">III</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">קטלוג</span>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--color-divider)">
@@ -1292,10 +1296,10 @@ class App {
     </div>`;
   }
 
-  // ── HOME: care guide ─────────────────────────────────────────────────
+  // ── CARE GUIDE (#/care) ──────────────────────────────────────────────
   // For someone who already has the plant: pick it, read how to keep it.
-  // Same photos as the catalog, but no price or cart — the card is a way in
-  // to the plant's page, where the full care notes live.
+  // Same photos as the catalog, but no price or cart — each card leads to
+  // the plant's page, where the full care notes live.
   renderCareGuide() {
     const site = this.state.site;
     const all = this.catalog();
@@ -1304,23 +1308,22 @@ class App {
       { label: 'הידרופוני', items: all.filter((p) => p.cat === 'hydro') }
     ].filter((g) => g.items.length);
     return `
-      <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider)">
-        <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 18px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">I</span>
-          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך טיפול</span>
-        </div>
-        <h2 style="font-size: clamp(27px, 2.9vw, 38px); font-weight: 400; line-height: 1.16; text-wrap: balance">${esc(site.careTitle)}</h2>
-        <p style="margin: 10px 0 0; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.6; color: var(--color-neutral-700); text-wrap: balance">${esc(site.careSub)}</p>
+    <div data-screen-label="מדריך טיפול">
+      <section style="padding: clamp(36px, 5vw, 60px) var(--pg) 84px">
+        <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך טיפול</span>
+        <h1 style="font-size: clamp(30px, 3.4vw, 46px); font-weight: 400; line-height: 1.14; margin-top: 14px; text-wrap: balance">${esc(site.careTitle)}</h1>
+        <p style="margin: 12px 0 0; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.6; color: var(--color-neutral-700); text-wrap: balance">${esc(site.careSub)}</p>
         <div style="display: flex; flex-direction: column; gap: clamp(30px, 4vw, 48px); margin-top: clamp(30px, 4vw, 44px)">
           ${groups.map((g) => `
           <div style="display: flex; flex-direction: column; gap: 22px">
-            ${groups.length > 1 ? `<h3 style="font-size: 18px; font-weight: 400; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">${g.label}</h3>` : ''}
+            ${groups.length > 1 ? `<h2 style="font-size: 18px; font-weight: 400; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">${g.label}</h2>` : ''}
             <div style="display: grid; grid-template-columns: var(--cards, repeat(auto-fill, minmax(min(230px, 100%), 1fr))); gap: var(--cards-gap, 48px 30px)">
               ${g.items.map((p) => this.careCard(p)).join('')}
             </div>
           </div>`).join('')}
         </div>
-      </section>`;
+      </section>
+    </div>`;
   }
   careCard(p) {
     const img = this.mainImg(p);

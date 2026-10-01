@@ -6,6 +6,7 @@ const SITE = {
   heroTitle: 'קוקודמות וצמחי בוטיק',
   heroBody: 'צמחים ששורשיהם עטופים בכדורי טחב מיובשים, שזורים בעבודת יד, המרחפים על אלמנטים מברזל.',
   heroCta1: 'לקטלוג',
+  heroCta2: 'מדריך טיפול',
   careTitle: 'בחרו את הצמח שלכם',
   careSub: 'מדריך לטיפול המלא מחכה לכם בפנים',
   storyKicker: 'הסטודיו',
@@ -28,8 +29,8 @@ const SITE = {
 };
 
 const SITE_FIELDS = [
-  { group: 'תמונת נושא בדף הבית', keys: [['heroKicker', 'כיתוב עליון', 'line'], ['heroTitle', 'כותרת ראשית', 'area'], ['heroBody', 'פסקת פתיחה', 'area'], ['heroCta1', 'כפתור', 'line']] },
-  { group: 'מדריך הטיפול בדף הבית', keys: [['careTitle', 'כותרת', 'line'], ['careSub', 'שורה שנייה', 'line']] },
+  { group: 'תמונת נושא בדף הבית', keys: [['heroKicker', 'כיתוב עליון', 'line'], ['heroTitle', 'כותרת ראשית', 'area'], ['heroBody', 'פסקת פתיחה', 'area'], ['heroCta1', 'כפתור קטלוג', 'line'], ['heroCta2', 'כפתור מדריך טיפול', 'line']] },
+  { group: 'עמוד מדריך הטיפול', keys: [['careTitle', 'כותרת', 'line'], ['careSub', 'שורה שנייה', 'line']] },
   { group: 'הסיפור של העסק', keys: [['storyKicker', 'כיתוב עליון', 'line'], ['storyTitle', 'כותרת', 'area'], ['storyIntro', 'פסקת פתיחה', 'area'], ['storyFounders', 'על גיל ושירן', 'area'], ['kokedamaQ', 'כותרת ההסבר', 'line'], ['kokedamaA', 'מה זה קוקודמה', 'area']] },
   { group: 'מעבר לקוקודמה', keys: [['beyondKicker', 'כיתוב עליון', 'line'], ['beyondTitle', 'כותרת', 'line'], ['beyondIntro', 'פסקת פתיחה', 'area'], ['series1H', 'סדרה ראשונה — שם', 'line'], ['series1B', 'סדרה ראשונה — תיאור', 'area'], ['series2H', 'סדרה שנייה — שם', 'line'], ['series2B', 'סדרה שנייה — תיאור', 'area'], ['series3H', 'סדרה שלישית — שם', 'line'], ['series3B', 'סדרה שלישית — תיאור', 'area'], ['beyondClose', 'שורת סיום', 'area']] },
   { group: 'פוטר', keys: [['footer', 'שורת פרטי העסק', 'area']] }
