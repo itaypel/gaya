@@ -327,7 +327,7 @@ class App {
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
       nfImgStatus: 'idle', nfImgError: '', nfNewId: null,
       nfImages: p.images.map((i) => Object.assign({}, i)), nfImgSel: 0, nfImgProgress: null,
-      nfStands: Array.isArray(p.standIds) ? p.standIds.slice() : null
+      nfStands: Array.isArray(p.stands) ? p.stands.map((x) => Object.assign({}, x)) : null
     });
   }
   saveEdit() {
@@ -339,7 +339,7 @@ class App {
       cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       size: (nf.size || '').trim(), light: (nf.light || '').trim(),
       water: (nf.water || '').trim(), desc: (nf.desc || '').trim(),
-      images: this.state.nfImages, standIds: this.state.nfStands
+      images: this.state.nfImages, stands: this.state.nfStands
     };
     // A product that never had a photo (img: '' in its base catalog entry)
     // needs its edits.img set explicitly here, or the upload succeeds but
@@ -420,7 +420,7 @@ class App {
     if (!name) return;
     const id = this.state.nfNewId || ('x' + (this.state.extra.length + 1));
     const item = {
-      id, images: this.state.nfImages, standIds: this.state.nfStands, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
+      id, images: this.state.nfImages, stands: this.state.nfStands, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
       name, price: Number(nf.price) || 0,
       size: (nf.size || '').trim() || 'בינונית',
       light: (nf.light || '').trim() || 'אור עקיף בהיר',
@@ -474,7 +474,7 @@ class App {
       const [id, standId] = key.split('~');
       const p = all.find((x) => x.id === id);
       if (!p) return null;
-      const stand = standId ? (s.stands.find((x) => x.id === standId) || null) : null;
+      const stand = standId ? (this.standsFor(p).find((x) => x.id === standId) || null) : null;
       const unit = p.price + this.standPrice(stand);
       const qty = s.cart[key];
       return { key, id, p, stand, qty, unit, total: unit * qty, name: p.name };
@@ -482,11 +482,11 @@ class App {
   }
   lineName(l) { return l.stand ? `${l.name} · סטנד ${l.stand.label}` : l.name; }
   standPrice(stand) { return stand ? Math.max(0, Number(stand.price) || 0) : 0; }
-  // standIds missing means "every stand size"; an explicit list narrows it.
+  // A plant with its own stand list (set in its edit screen) uses that;
+  // one that was never customised falls back to the shared default list.
+  // An empty own list means the plant is sold with no stand choice.
   standsFor(p) {
-    const all = this.state.stands;
-    if (!p || !Array.isArray(p.standIds)) return all;
-    return all.filter((x) => p.standIds.includes(x.id));
+    return p && Array.isArray(p.stands) ? p.stands : this.state.stands;
   }
   defaultStand(p) {
     return this.standsFor(p).reduce((best, x) => (!best || this.standPrice(x) < this.standPrice(best) ? x : best), null);
@@ -501,28 +501,43 @@ class App {
     const min = Math.min(...adds);
     return { amount: p.price + min, from: Math.max(...adds) > min };
   }
+  newStandId() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  // Shared default list (products tab). Saved as you go.
   setStand(id, patch) {
-    this.setState((st) => ({ stands: st.stands.map((x) => (x.id === id ? Object.assign({}, x, patch.price !== undefined ? { price: Math.max(0, Number(patch.price) || 0) } : { label: String(patch.label || '').trim() || x.label }) : x)) }));
+    this.setState((st) => ({ stands: this.patchStandList(st.stands, st.stands.findIndex((x) => x.id === id), patch) }));
     clearTimeout(this._standPersistT);
     this._standPersistT = setTimeout(() => this.persistCatalog(), 600);
   }
   addStand() {
-    this.setState((st) => ({ stands: st.stands.concat([{ id: 's' + Date.now().toString(36), label: 'גודל חדש', price: 0 }]) }));
+    this.setState((st) => ({ stands: st.stands.concat([{ id: this.newStandId(), label: 'גודל חדש', price: 0 }]) }));
     this.persistCatalog();
   }
   removeStand(id) {
     this.setState((st) => ({ stands: st.stands.filter((x) => x.id !== id) }));
     this.persistCatalog();
   }
-  // Ticking every stand again goes back to "all", so a size added later
-  // reaches this product too instead of being missed by a frozen list.
-  toggleNfStand(id) {
-    this.setState((st) => {
-      const allIds = st.stands.map((x) => x.id);
-      const cur = Array.isArray(st.nfStands) ? st.nfStands : allIds;
-      const next = cur.includes(id) ? cur.filter((x) => x !== id) : cur.concat([id]);
-      return { nfStands: allIds.every((x) => next.includes(x)) ? null : next };
-    });
+  moveStand(id, dir) {
+    this.setState((st) => ({ stands: this.moveInList(st.stands, st.stands.findIndex((x) => x.id === id), dir) }));
+    this.persistCatalog();
+  }
+  // One product's own list, edited in its panel and saved with the product.
+  // Starting to edit a product that still uses the defaults copies them in
+  // first, so a tweak to one size doesn't lose the others.
+  editNfStands(fn) {
+    this.setState((st) => ({ nfStands: fn(Array.isArray(st.nfStands) ? st.nfStands : st.stands.map((x) => Object.assign({}, x))) }));
+  }
+  patchStandList(list, idx, patch) {
+    if (idx < 0) return list;
+    return list.map((x, i) => (i !== idx ? x : Object.assign({}, x, patch.price !== undefined
+      ? { price: Math.max(0, Math.round(Number(patch.price) || 0)) }
+      : { label: String(patch.label || '').trim() || x.label })));
+  }
+  moveInList(list, idx, dir) {
+    const to = idx + dir;
+    if (idx < 0 || to < 0 || to >= list.length) return list;
+    const next = list.slice();
+    [next[idx], next[to]] = [next[to], next[idx]];
+    return next;
   }
 
   // ── gallery editing ──────────────────────────────────────────────────
@@ -634,7 +649,13 @@ class App {
       case 'nfImgPick': this.setState({ nfImgSel: Number(id) || 0 }); break;
       case 'nfImgRemove': this.removeNfImg(Number(id) || 0); break;
       case 'nfImgMain': this.makeNfImgMain(Number(id) || 0); break;
-      case 'nfStandToggle': this.toggleNfStand(id); break;
+      case 'nfStandAdd': this.editNfStands((l) => l.concat([{ id: this.newStandId(), label: 'גודל חדש', price: 0 }])); break;
+      case 'nfStandDel': this.editNfStands((l) => l.filter((_, i) => i !== Number(id))); break;
+      case 'nfStandUp': this.editNfStands((l) => this.moveInList(l, Number(id), -1)); break;
+      case 'nfStandDown': this.editNfStands((l) => this.moveInList(l, Number(id), 1)); break;
+      case 'nfStandReset': this.setState({ nfStands: null }); break;
+      case 'standUp': this.moveStand(id, -1); break;
+      case 'standDown': this.moveStand(id, 1); break;
       case 'prodImg': this.setState({ prodImg: Number(id) || 0 }); break;
       case 'prodImgStep': this.stepProdImg(Number(el.dataset.step) || 0); break;
       case 'pickStand': this.setState({ prodStand: id }); break;
@@ -665,6 +686,8 @@ class App {
     else if (t.dataset.admPass) this.state.admPass = t.value;
     else if (t.dataset.nfImgFile) { const fs = Array.from(t.files || []); t.value = ''; if (fs.length) this.uploadProductImages(this.state.editId || this.state.nfNewId, fs); }
     else if (t.dataset.standLabel) this.setStand(t.dataset.standLabel, { label: t.value });
+    else if (t.dataset.nfStandLabel !== undefined) { const i = Number(t.dataset.nfStandLabel), v = t.value; this.editNfStands((l) => this.patchStandList(l, i, { label: v })); }
+    else if (t.dataset.nfStandPrice !== undefined) { const i = Number(t.dataset.nfStandPrice), v = t.value; this.editNfStands((l) => this.patchStandList(l, i, { price: v })); }
     else if (t.dataset.standPrice) this.setStand(t.dataset.standPrice, { price: t.value });
     else if (t.dataset.storyImgFile) { const f = t.files && t.files[0]; const slot = t.dataset.storyImgFile; t.value = ''; if (f) this.uploadStoryImage(slot, f); }
   }
@@ -1724,19 +1747,23 @@ class App {
         </div>
       </div>
       <div class="card" style="padding: clamp(18px, 2.4vw, 26px); gap: 14px; margin-top: 16px">
-        <span class="card-kicker">לכל המוצרים</span>
+        <span class="card-kicker">ברירת מחדל</span>
         <h2 style="font-size: 20px; font-weight: 400">גודלי סטנד</h2>
-        <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700); max-width: 62ch">הגדלים שהלקוח בוחר מהם בעמוד המוצר. תוספת מחיר היא סכום שמתווסף למחיר הצמח — 0 אם הסטנד לא משנה את המחיר. בעריכת כל מוצר אפשר לבחור אילו מהגדלים זמינים לו. השינויים נשמרים אוטומטית.</p>
+        <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700); max-width: 62ch">הגדלים האלה מוצגים בכל צמח שלא הוגדרו לו גדלים משלו. לצמח עם גדלים או מחירים אחרים — פותחים את העריכה שלו ומשנים שם. מחיר הסטנד מתווסף למחיר הצמח (0 = בלי תוספת). השינויים כאן נשמרים אוטומטית.</p>
         ${s.stands.length ? `
         <div style="display: flex; flex-direction: column; gap: 10px; max-width: 560px">
-          <div class="stand-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>שם הגודל</span><span>תוספת מחיר (₪)</span><span></span></div>
-          ${s.stands.map((x) => `
+          <div class="stand-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>הגודל</span><span>מחיר הסטנד (₪)</span><span></span></div>
+          ${s.stands.map((x, i) => `
           <div class="stand-row">
             <input class="input" id="stand-label-${esc(x.id)}" data-stand-label="${esc(x.id)}" value="${esc(x.label)}" aria-label="שם הגודל">
-            <input class="input" id="stand-price-${esc(x.id)}" data-stand-price="${esc(x.id)}" type="number" min="0" step="1" value="${this.standPrice(x)}" aria-label="תוספת מחיר לגודל ${esc(x.label)}" style="font-variant-numeric: tabular-nums">
-            <button class="btn btn-ghost" data-act="standRemove" data-id="${esc(x.id)}" style="border: 0; font-size: 13px">הסרה</button>
+            <input class="input" id="stand-price-${esc(x.id)}" data-stand-price="${esc(x.id)}" type="number" min="0" step="1" value="${this.standPrice(x)}" aria-label="מחיר הסטנד ${esc(x.label)}" style="font-variant-numeric: tabular-nums">
+            <span class="nf-stand-tools">
+              <button class="btn btn-secondary btn-icon" data-act="standUp" data-id="${esc(x.id)}" aria-label="להזיז את ${esc(x.label)} למעלה" ${i === 0 ? 'disabled' : ''}><span style="display: block; transform: rotate(90deg)">${ICON.crumb}</span></button>
+              <button class="btn btn-secondary btn-icon" data-act="standDown" data-id="${esc(x.id)}" aria-label="להזיז את ${esc(x.label)} למטה" ${i === s.stands.length - 1 ? 'disabled' : ''}><span style="display: block; transform: rotate(-90deg)">${ICON.crumb}</span></button>
+              <button class="btn btn-secondary btn-icon" data-act="standRemove" data-id="${esc(x.id)}" aria-label="להסיר את ${esc(x.label)}">${ICON.close}</button>
+            </span>
           </div>`).join('')}
-        </div>` : `<p style="margin: 0; font-size: 13.5px; color: var(--color-neutral-600)">אין גדלים מוגדרים — המוצרים יימכרו בלי בחירת סטנד.</p>`}
+        </div>` : `<p style="margin: 0; font-size: 13.5px; color: var(--color-neutral-600)">אין גדלי ברירת מחדל — צמח בלי גדלים משלו יימכר בלי בחירת סטנד.</p>`}
         <button class="btn btn-secondary" data-act="standAdd" style="align-self: flex-start; gap: 8px">${ICON.plus15}<span>הוספת גודל</span></button>
       </div>
 
@@ -1959,6 +1986,8 @@ class App {
     const sel = imgs[s.nfImgSel] || null;
     const uploading = s.nfImgStatus === 'uploading';
     const prog = s.nfImgProgress || { done: 0, total: 0 };
+    const ownStands = Array.isArray(s.nfStands);
+    const standRows = ownStands ? s.nfStands : s.stands;
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -2026,12 +2055,25 @@ class App {
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--color-divider)">
           <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent)">גודלי סטנד למוצר הזה</span>
-          ${s.stands.length ? `
-          <div style="display: flex; gap: 8px; flex-wrap: wrap">
-            ${s.stands.map((x) => { const on = !Array.isArray(s.nfStands) || s.nfStands.includes(x.id); return `<label class="chip-check${on ? ' is-on' : ''}"><input type="checkbox" data-act="nfStandToggle" data-id="${esc(x.id)}" ${on ? 'checked' : ''}><span>${esc(x.label)}${this.standPrice(x) ? ` · +${this.fmt(this.standPrice(x))}` : ''}</span></label>`; }).join('')}
-          </div>
-          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">הלקוח יבחר מבין הגדלים המסומנים. בלי אף סימון — המוצר נמכר בלי בחירת סטנד.</p>`
-          : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">עדיין לא הוגדרו גודלי סטנד. מוסיפים אותם בטאב "מוצרים ומלאי".</p>`}
+          ${ownStands
+            ? `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">למוצר הזה גדלים משלו. <button class="btn btn-ghost" data-act="nfStandReset" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">חזרה לגדלי ברירת המחדל</button></p>`
+            : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">המוצר משתמש כרגע בגדלי ברירת המחדל (טאב "מוצרים ומלאי"). כל שינוי כאן יקבע לו גדלים משלו.</p>`}
+          ${standRows.length ? `
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <div class="nf-stand-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>הגודל</span><span>מחיר הסטנד (₪)</span><span></span></div>
+            ${standRows.map((x, i) => `
+            <div class="nf-stand-row">
+              <input class="input" id="nf-stand-label-${i}" data-nf-stand-label="${i}" value="${esc(x.label)}" placeholder="למשל 40 ס״מ" aria-label="שם הגודל ${i + 1}">
+              <input class="input" id="nf-stand-price-${i}" data-nf-stand-price="${i}" type="number" min="0" step="1" value="${this.standPrice(x)}" aria-label="מחיר הסטנד ${esc(x.label)}" style="font-variant-numeric: tabular-nums">
+              <span class="nf-stand-tools">
+                <button class="btn btn-secondary btn-icon" data-act="nfStandUp" data-id="${i}" aria-label="להזיז את ${esc(x.label)} למעלה" ${i === 0 ? 'disabled' : ''}><span style="display: block; transform: rotate(90deg)">${ICON.crumb}</span></button>
+                <button class="btn btn-secondary btn-icon" data-act="nfStandDown" data-id="${i}" aria-label="להזיז את ${esc(x.label)} למטה" ${i === standRows.length - 1 ? 'disabled' : ''}><span style="display: block; transform: rotate(-90deg)">${ICON.crumb}</span></button>
+                <button class="btn btn-secondary btn-icon" data-act="nfStandDel" data-id="${i}" aria-label="להסיר את ${esc(x.label)}">${ICON.close}</button>
+              </span>
+            </div>`).join('')}
+          </div>` : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">אין גדלים — המוצר נמכר בלי בחירת סטנד.</p>`}
+          <button class="btn btn-secondary" data-act="nfStandAdd" style="align-self: flex-start; gap: 8px">${ICON.plus15}<span>הוספת גודל</span></button>
+          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">מחיר הסטנד מתווסף למחיר הצמח (0 = בלי תוספת). הסדר כאן הוא הסדר שהלקוח רואה. נשמר בלחיצה על "שמירת שינויים".</p>
         </div>
       </div>
       <div style="border-top: 1px solid var(--color-divider); padding: 20px 26px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--color-bg)">
