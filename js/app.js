@@ -79,11 +79,10 @@ class App {
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
       admTab: 'products', site: Object.assign({}, SITE),
       ordFilter: 'all', ordOpenRef: null, ordActionError: '', pendingOrderRef: null,
-      tagSel: {},
       admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
-      nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfNewId: null, nfStands: null,
+      nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfNewId: null, nfStands: [],
       nfImages: [], nfImgSel: 0, nfImgProgress: null,
-      prodImg: 0, prodStand: null, stands: STANDS_DEFAULT.map((x) => Object.assign({}, x)),
+      prodImg: 0, prodStand: null,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
       orders: [], ordersStatus: 'idle', ordersError: '',
@@ -149,8 +148,7 @@ class App {
         removed: (data.removed && typeof data.removed === 'object') ? data.removed : {},
         stock: Object.assign({}, STOCK, (data.stock && typeof data.stock === 'object') ? data.stock : {}),
         extra: Array.isArray(data.extra) ? data.extra : [],
-        site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {}),
-        stands: Array.isArray(data.stands) ? data.stands : STANDS_DEFAULT.map((x) => Object.assign({}, x))
+        site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {})
       });
     } catch (e) {
       // offline or blocked — visitors still see the last-deployed catalog
@@ -162,7 +160,7 @@ class App {
     // snapshot and silently undo changes saved from another session.
     if (this._catalogLoadPromise) { await this._catalogLoadPromise; this._catalogLoadPromise = null; }
     this.setState({ catalogSyncStatus: 'saving' });
-    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site, stands: this.state.stands };
+    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site };
     try {
       const headers = { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE };
       if (this._catalogEtag) headers['X-Catalog-Etag'] = this._catalogEtag;
@@ -329,7 +327,7 @@ class App {
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
       nfImgStatus: 'idle', nfImgError: '', nfNewId: null,
       nfImages: p.images.map((i) => Object.assign({}, i)), nfImgSel: 0, nfImgProgress: null,
-      nfStands: Array.isArray(p.stands) ? p.stands.map((x) => Object.assign({}, x)) : null
+      nfStands: Array.isArray(p.stands) ? p.stands.map((x) => Object.assign({}, x)) : []
     });
   }
   saveEdit() {
@@ -434,7 +432,7 @@ class App {
       extra: st.extra.concat([item]),
       stock: Object.assign({}, st.stock, { [id]: Number(nf.stock) || 0 }),
       admForm: false,
-      nf: this.blankNf(), nfNewId: null, nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: null
+      nf: this.blankNf(), nfNewId: null, nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: []
     }));
     this.persistCatalog();
   }
@@ -484,11 +482,10 @@ class App {
   }
   lineName(l) { return l.stand ? `${l.name} · סטנד ${l.stand.label}` : l.name; }
   standPrice(stand) { return stand ? Math.max(0, Number(stand.price) || 0) : 0; }
-  // A plant with its own stand list (set in its edit screen) uses that;
-  // one that was never customised falls back to the shared default list.
-  // An empty own list means the plant is sold with no stand choice.
+  // Each plant's stand sizes are set by hand in its edit screen; a plant
+  // with none is sold with no stand choice.
   standsFor(p) {
-    return p && Array.isArray(p.stands) ? p.stands : this.state.stands;
+    return p && Array.isArray(p.stands) ? p.stands : [];
   }
   defaultStand(p) {
     return this.standsFor(p).reduce((best, x) => (!best || this.standPrice(x) < this.standPrice(best) ? x : best), null);
@@ -504,29 +501,9 @@ class App {
     return { amount: p.price + min, from: Math.max(...adds) > min };
   }
   newStandId() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
-  // Shared default list (products tab). Saved as you go.
-  setStand(id, patch) {
-    this.setState((st) => ({ stands: this.patchStandList(st.stands, st.stands.findIndex((x) => x.id === id), patch) }));
-    clearTimeout(this._standPersistT);
-    this._standPersistT = setTimeout(() => this.persistCatalog(), 600);
-  }
-  addStand() {
-    this.setState((st) => ({ stands: st.stands.concat([{ id: this.newStandId(), label: 'גודל חדש', price: 0 }]) }));
-    this.persistCatalog();
-  }
-  removeStand(id) {
-    this.setState((st) => ({ stands: st.stands.filter((x) => x.id !== id) }));
-    this.persistCatalog();
-  }
-  moveStand(id, dir) {
-    this.setState((st) => ({ stands: this.moveInList(st.stands, st.stands.findIndex((x) => x.id === id), dir) }));
-    this.persistCatalog();
-  }
-  // One product's own list, edited in its panel and saved with the product.
-  // Starting to edit a product that still uses the defaults copies them in
-  // first, so a tweak to one size doesn't lose the others.
+  // The open product's stand list, saved with the product.
   editNfStands(fn) {
-    this.setState((st) => ({ nfStands: fn(Array.isArray(st.nfStands) ? st.nfStands : st.stands.map((x) => Object.assign({}, x))) }));
+    this.setState((st) => ({ nfStands: fn(Array.isArray(st.nfStands) ? st.nfStands : []) }));
   }
   patchStandList(list, idx, patch) {
     if (idx < 0) return list;
@@ -624,19 +601,12 @@ class App {
       case 'admGoOrders': this.setState({ admTab: 'orders' }); this.loadOrders(); break;
       case 'enablePush': this.enablePushNotifications(); break;
       case 'admGoSite': this.setState({ admTab: 'site' }); break;
-      case 'admGoTags':
-        this.setState({ admTab: 'tags' });
-        this.loadQrLib().then(() => this.mountQrTags()).catch(() => {});
+      case 'admGoQr':
+        this.setState({ admTab: 'qr' });
+        this.loadQrLib().then(() => this.mountSiteQr()).catch(() => {});
         break;
-      case 'tagToggle': this.setState((st) => ({ tagSel: Object.assign({}, st.tagSel, { [id]: !this.tagSelected(id) }) })); break;
-      case 'tagSelectAll': {
-        const all = {};
-        this.catalog().forEach((p) => { all[p.id] = true; });
-        this.setState({ tagSel: all });
-        break;
-      }
-      case 'tagSelectNone': this.setState({ tagSel: {} }); break;
-      case 'tagPrint': window.print(); break;
+      case 'qrPrint': window.print(); break;
+      case 'qrDownload': this.downloadSiteQr(); break;
       case 'admShowAll': this.setState({ admFilter: 'all' }); break;
       case 'admShowKok': this.setState({ admFilter: 'kok' }); break;
       case 'admShowHyd': this.setState({ admFilter: 'hyd' }); break;
@@ -645,8 +615,8 @@ class App {
       case 'admEdit': this.openEditor(id); break;
       case 'admInc': this.bumpStock(id, 1); break;
       case 'admDec': this.bumpStock(id, -1); break;
-      case 'admOpenNew': this.setState((st) => ({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: null, nfNewId: 'x' + (st.extra.length + 1) })); break;
-      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: null, nfNewId: null }); break;
+      case 'admOpenNew': this.setState((st) => ({ admForm: true, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: [], nfNewId: 'x' + (st.extra.length + 1) })); break;
+      case 'admCloseNew': this.setState({ admForm: false, editId: null, nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfImages: [], nfImgSel: 0, nfImgProgress: null, nfStands: [], nfNewId: null }); break;
       case 'nfFitCover': this.setSelImg({ fit: 'cover' }); break;
       case 'nfFitContain': this.setSelImg({ fit: 'contain' }); break;
       case 'nfPosCenter': this.setSelImg({ pos: '50% 50%' }); break;
@@ -657,14 +627,9 @@ class App {
       case 'nfStandDel': this.editNfStands((l) => l.filter((_, i) => i !== Number(id))); break;
       case 'nfStandUp': this.editNfStands((l) => this.moveInList(l, Number(id), -1)); break;
       case 'nfStandDown': this.editNfStands((l) => this.moveInList(l, Number(id), 1)); break;
-      case 'nfStandReset': this.setState({ nfStands: null }); break;
-      case 'standUp': this.moveStand(id, -1); break;
-      case 'standDown': this.moveStand(id, 1); break;
       case 'prodImg': this.setState({ prodImg: Number(id) || 0 }); break;
       case 'prodImgStep': this.stepProdImg(Number(el.dataset.step) || 0); break;
       case 'pickStand': this.setState({ prodStand: id }); break;
-      case 'standAdd': this.addStand(); break;
-      case 'standRemove': this.removeStand(id); break;
       case 'nfDropModel': this.dropModel(); break;
       case 'nfSetKok': this.setNf('cat', 'kokedama'); break;
       case 'nfSetHyd': this.setNf('cat', 'hydro'); break;
@@ -689,10 +654,8 @@ class App {
     else if (t.dataset.nfField) this.setNf(t.dataset.nfField, t.value);
     else if (t.dataset.admPass) this.state.admPass = t.value;
     else if (t.dataset.nfImgFile) { const fs = Array.from(t.files || []); t.value = ''; if (fs.length) this.uploadProductImages(this.state.editId || this.state.nfNewId, fs); }
-    else if (t.dataset.standLabel) this.setStand(t.dataset.standLabel, { label: t.value });
     else if (t.dataset.nfStandLabel !== undefined) { const i = Number(t.dataset.nfStandLabel), v = t.value; this.editNfStands((l) => this.patchStandList(l, i, { label: v })); }
     else if (t.dataset.nfStandPrice !== undefined) { const i = Number(t.dataset.nfStandPrice), v = t.value; this.editNfStands((l) => this.patchStandList(l, i, { price: v })); }
-    else if (t.dataset.standPrice) this.setStand(t.dataset.standPrice, { price: t.value });
     else if (t.dataset.storyImgFile) { const f = t.files && t.files[0]; const slot = t.dataset.storyImgFile; t.value = ''; if (f) this.uploadStoryImage(slot, f); }
   }
 
@@ -875,22 +838,40 @@ class App {
     }
     return this._mvPromise;
   }
-  tagSelected(id) { return this.state.tagSel[id] === true; }
-  // render() replaces the whole tree, so every pass leaves empty mounts to
-  // refill — cheap enough for a couple dozen codes on an admin-only screen.
-  mountQrTags() {
+  // render() replaces the whole tree, so each pass leaves an empty mount to
+  // refill. Drawn at 1024px so both the print and the download stay sharp.
+  mountSiteQr() {
     if (!window.QRCode) return;
-    this.root.querySelectorAll('[data-qr-id]').forEach((el) => {
-      if (el.childElementCount > 0) return;
-      new window.QRCode(el, {
-        text: PRODUCT_URL_BASE + el.dataset.qrId,
-        width: 320,
-        height: 320,
-        colorDark: '#241f18',
-        colorLight: '#fdfcf8',
-        correctLevel: window.QRCode.CorrectLevel.M
-      });
+    const el = this.root.querySelector('[data-site-qr]');
+    if (!el || el.childElementCount > 0) return;
+    new window.QRCode(el, {
+      text: SITE_URL,
+      width: 1024,
+      height: 1024,
+      colorDark: '#241f18',
+      colorLight: '#ffffff',
+      correctLevel: window.QRCode.CorrectLevel.M
     });
+  }
+  // The rendered code has no white border of its own, and scanners need one
+  // (a "quiet zone"), so the downloaded PNG gets it added around the edge.
+  downloadSiteQr() {
+    const src = this.root.querySelector('[data-site-qr] canvas');
+    if (!src) return;
+    const pad = Math.round(src.width * 0.08);
+    const c = document.createElement('canvas');
+    c.width = src.width + pad * 2;
+    c.height = src.height + pad * 2;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(src, pad, pad);
+    const a = document.createElement('a');
+    a.href = c.toDataURL('image/png');
+    a.download = 'gaya-qr.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   tryAdminGate() {
@@ -946,7 +927,7 @@ class App {
     this.root.style.zoom = (s.font / 100);
     document.documentElement.style.filter = s.contrast ? 'contrast(1.35) saturate(1.1)' : 'none';
     this.root.setAttribute('data-a11y-links', s.links ? '1' : '0');
-    if (s.screen === 'admin' && s.admTab === 'tags') this.mountQrTags();
+    if (s.screen === 'admin' && s.admTab === 'qr') this.mountSiteQr();
   }
 
   // Photos are shot at whatever aspect the phone gives; the frames on site
@@ -1734,7 +1715,7 @@ class App {
           <button class="btn ${s.admTab === 'products' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoProducts" style="gap: 8px">${ICON.bag}<span>מוצרים ומלאי</span></button>
           <button class="btn ${s.admTab === 'orders' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoOrders" style="gap: 8px">${ICON.calendar}<span>יומן הזמנות</span></button>
           <button class="btn ${s.admTab === 'site' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoSite" style="gap: 8px">${ICON.site}<span>ניהול האתר</span></button>
-          <button class="btn ${s.admTab === 'tags' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoTags" style="gap: 8px">${ICON.qr}<span>תגיות QR</span></button>
+          <button class="btn ${s.admTab === 'qr' ? 'btn-primary' : 'btn-secondary'}" data-act="admGoQr" style="gap: 8px">${ICON.qr}<span>קוד QR לאתר</span></button>
         </div>
         ${s.admTab === 'products' ? `
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); gap: 14px; padding-bottom: 26px; border-bottom: 1px solid var(--color-divider)">
@@ -1748,7 +1729,7 @@ class App {
       ${s.admTab === 'products' ? this.renderAdminProducts() : ''}
       ${s.admTab === 'orders' ? this.renderAdminOrders() : ''}
       ${s.admTab === 'site' ? this.renderAdminSite() : ''}
-      ${s.admTab === 'tags' ? this.renderAdminTags() : ''}
+      ${s.admTab === 'qr' ? this.renderAdminQr() : ''}
     </div>`;
   }
 
@@ -1788,26 +1769,6 @@ class App {
           ${s.storyImgStatus2 === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי תוך כדקה.</p>` : ''}
           ${s.storyImgStatus2 === 'error' ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(s.storyImgError2)}</p>` : ''}
         </div>
-      </div>
-      <div class="card" style="padding: clamp(18px, 2.4vw, 26px); gap: 14px; margin-top: 16px">
-        <span class="card-kicker">ברירת מחדל</span>
-        <h2 style="font-size: 20px; font-weight: 400">גודלי סטנד</h2>
-        <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700); max-width: 62ch">הגדלים האלה מוצגים בכל צמח שלא הוגדרו לו גדלים משלו. לצמח עם גדלים או מחירים אחרים — פותחים את העריכה שלו ומשנים שם. מחיר הסטנד מתווסף למחיר הצמח (0 = בלי תוספת). השינויים כאן נשמרים אוטומטית.</p>
-        ${s.stands.length ? `
-        <div style="display: flex; flex-direction: column; gap: 10px; max-width: 560px">
-          <div class="stand-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>הגודל</span><span>מחיר הסטנד (₪)</span><span></span></div>
-          ${s.stands.map((x, i) => `
-          <div class="stand-row">
-            <input class="input" id="stand-label-${esc(x.id)}" data-stand-label="${esc(x.id)}" value="${esc(x.label)}" aria-label="שם הגודל">
-            <input class="input" id="stand-price-${esc(x.id)}" data-stand-price="${esc(x.id)}" type="number" min="0" step="1" value="${this.standPrice(x)}" aria-label="מחיר הסטנד ${esc(x.label)}" style="font-variant-numeric: tabular-nums">
-            <span class="nf-stand-tools">
-              <button class="btn btn-secondary btn-icon" data-act="standUp" data-id="${esc(x.id)}" aria-label="להזיז את ${esc(x.label)} למעלה" ${i === 0 ? 'disabled' : ''}><span style="display: block; transform: rotate(90deg)">${ICON.crumb}</span></button>
-              <button class="btn btn-secondary btn-icon" data-act="standDown" data-id="${esc(x.id)}" aria-label="להזיז את ${esc(x.label)} למטה" ${i === s.stands.length - 1 ? 'disabled' : ''}><span style="display: block; transform: rotate(-90deg)">${ICON.crumb}</span></button>
-              <button class="btn btn-secondary btn-icon" data-act="standRemove" data-id="${esc(x.id)}" aria-label="להסיר את ${esc(x.label)}">${ICON.close}</button>
-            </span>
-          </div>`).join('')}
-        </div>` : `<p style="margin: 0; font-size: 13.5px; color: var(--color-neutral-600)">אין גדלי ברירת מחדל — צמח בלי גדלים משלו יימכר בלי בחירת סטנד.</p>`}
-        <button class="btn btn-secondary" data-act="standAdd" style="align-self: flex-start; gap: 8px">${ICON.plus15}<span>הוספת גודל</span></button>
       </div>
 
       ${s.catalogSyncStatus === 'saving' ? `<p style="margin: 18px 0 0; font-size: 12.5px; color: var(--color-neutral-600)">שומר שינויים…</p>`
@@ -1968,57 +1929,25 @@ class App {
   }
 
   // ── QR CARE TAGS ─────────────────────────────────────────────────────
-  renderAdminTags() {
-    const all = this.catalog();
-    const chosenCount = all.filter((p) => this.tagSelected(p.id)).length;
-    const groups = [
-      { key: 'kokedama', label: 'קוקודמות', items: all.filter((p) => p.cat !== 'hydro') },
-      { key: 'hydro', label: 'הידרופוני', items: all.filter((p) => p.cat === 'hydro') }
-    ].filter((g) => g.items.length > 0);
-
-    // Every tag stays on screen so there is something to pick from; the
-    // unpicked ones are dimmed here and dropped entirely from the print.
-    const tag = (p) => {
-      const on = this.tagSelected(p.id);
-      return `
-      <label class="qr-tag ${on ? '' : 'is-off'}">
-        <input type="checkbox" class="qr-tag-check" data-act="tagToggle" data-id="${p.id}" ${on ? 'checked' : ''} aria-label="${on ? 'להסיר את' : 'לסמן את'} ${esc(p.name)} ${on ? 'מההדפסה' : 'להדפסה'}">
-        <span class="qr-tag-brand">גאיה</span>
-        <span class="qr-tag-code" data-qr-id="${p.id}"></span>
-        <span class="qr-tag-name">${esc(p.name)}</span>
-      </label>`;
-    };
-
+  renderAdminQr() {
     return `
     <section style="padding: 0 var(--pg) 80px">
-      <div class="qr-screen-only" style="display: flex; flex-direction: column; gap: 18px; max-width: 760px; padding-bottom: 30px">
-        <p style="margin: 0; font-size: 15px; line-height: 1.85; text-align: justify; color: var(--color-neutral-800)">תגית לכל צמח, עם קוד שנפתח בעמוד המוצר שלו באתר — שם מופיעות הוראות האור וההשקיה. מסמנים את הפריטים שרוצים, מדפיסים, וגוזרים לאורך הקווים. יודפסו רק התגיות המסומנות. פריט חדש שנוסף לקטלוג מקבל תגית משלו אוטומטית.</p>
-        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
-          <span style="font-size: 13px; color: ${chosenCount ? 'var(--color-accent-700)' : 'var(--color-neutral-600)'}; font-variant-numeric: tabular-nums">${chosenCount ? chosenCount + ' מתוך ' + all.length + ' מסומנים להדפסה' : 'לא סומן אף פריט — סמנו תגיות כדי להדפיס'}</span>
-          <button class="btn btn-secondary" data-act="tagSelectAll">סימון הכל</button>
-          <button class="btn btn-secondary" data-act="tagSelectNone" ${chosenCount === 0 ? 'disabled' : ''}>ניקוי הסימון</button>
-          <button class="btn btn-primary" data-act="tagPrint" style="margin-inline-start: auto" ${chosenCount === 0 ? 'disabled' : ''}>הדפסת המסומנות</button>
+      <div class="qr-screen-only" style="display: flex; flex-direction: column; gap: 18px; max-width: 640px; padding-bottom: 30px">
+        <p style="margin: 0; font-size: 15px; line-height: 1.85; color: var(--color-neutral-800)">קוד אחד שמוביל לאתר — לכרטיס ביקור, לשלט בסטודיו או למדבקה על אריזה. אפשר להדפיס אותו מכאן או להוריד כתמונה ולשלב בעיצוב.</p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap">
+          <button class="btn btn-primary" data-act="qrDownload">הורדה כתמונה</button>
+          <button class="btn btn-secondary" data-act="qrPrint">הדפסה</button>
         </div>
       </div>
-
-      ${all.length === 0 ? `<p style="margin: 0; font-size: 14px; color: var(--color-neutral-600)">אין עדיין פריטים בקטלוג.</p>` : ''}
-
-      <div id="qr-print-sheet" style="display: flex; flex-direction: column; gap: 30px">
-        ${groups.map((g) => {
-          const on = g.items.filter((p) => this.tagSelected(p.id)).length;
-          return `
-        <div style="display: flex; flex-direction: column; gap: 16px">
-          <div class="qr-sheet-head" style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">
-            <h2 style="font-size: 18px; font-weight: 400">${g.label}</h2>
-            <span style="font-size: 12px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${on} מתוך ${g.items.length} מסומנים</span>
-          </div>
-          <div class="qr-tag-grid">${g.items.map(tag).join('')}</div>
-        </div>`; }).join('')}
+      <div id="qr-print-sheet">
+        <div class="site-qr">
+          <span class="site-qr-brand">גאיה</span>
+          <span class="site-qr-code" data-site-qr="1" role="img" aria-label="קוד QR לכתובת gayaplants.com"></span>
+          <span class="site-qr-url">gayaplants.com</span>
+        </div>
       </div>
     </section>`;
   }
-
-  // ── slide-over: product editor ──────────────────────────────────────
   renderProductEditorPanel() {
     const s = this.state;
     const open = s.admForm;
@@ -2029,8 +1958,7 @@ class App {
     const sel = imgs[s.nfImgSel] || null;
     const uploading = s.nfImgStatus === 'uploading';
     const prog = s.nfImgProgress || { done: 0, total: 0 };
-    const ownStands = Array.isArray(s.nfStands);
-    const standRows = ownStands ? s.nfStands : s.stands;
+    const standRows = Array.isArray(s.nfStands) ? s.nfStands : [];
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -2098,9 +2026,6 @@ class App {
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--color-divider)">
           <span style="font-size: 12px; color: color-mix(in srgb, var(--color-text) 70%, transparent)">גודלי סטנד למוצר הזה</span>
-          ${ownStands
-            ? `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">למוצר הזה גדלים משלו. <button class="btn btn-ghost" data-act="nfStandReset" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">חזרה לגדלי ברירת המחדל</button></p>`
-            : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">המוצר משתמש כרגע בגדלי ברירת המחדל (טאב "מוצרים ומלאי"). כל שינוי כאן יקבע לו גדלים משלו.</p>`}
           ${standRows.length ? `
           <div style="display: flex; flex-direction: column; gap: 8px">
             <div class="nf-stand-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>הגודל</span><span>מחיר הסטנד (₪)</span><span></span></div>
@@ -2114,7 +2039,7 @@ class App {
                 <button class="btn btn-secondary btn-icon" data-act="nfStandDel" data-id="${i}" aria-label="להסיר את ${esc(x.label)}">${ICON.close}</button>
               </span>
             </div>`).join('')}
-          </div>` : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">אין גדלים — המוצר נמכר בלי בחירת סטנד.</p>`}
+          </div>` : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">עדיין אין גדלים לצמח הזה — בלי גדלים הוא נמכר בלי בחירת סטנד.</p>`}
           <button class="btn btn-secondary" data-act="nfStandAdd" style="align-self: flex-start; gap: 8px">${ICON.plus15}<span>הוספת גודל</span></button>
           <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">מחיר הסטנד מתווסף למחיר הצמח (0 = בלי תוספת). הסדר כאן הוא הסדר שהלקוח רואה. נשמר בלחיצה על "שמירת שינויים".</p>
         </div>

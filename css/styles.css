@@ -213,7 +213,7 @@ h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
   border-style: dashed; border-color: var(--color-accent-300);
 }
 .nf-thumb-add:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
-.stand-row, .nf-stand-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 8px; align-items: center; }
+.nf-stand-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 8px; align-items: center; }
 .nf-stand-tools { display: flex; gap: 4px; }
 .nf-stand-tools .btn-icon { width: 32px; height: 32px; }
 .nf-stand-tools .btn-icon:disabled { opacity: 0.3; }
@@ -233,58 +233,31 @@ h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
 }
 .care-name { font-family: var(--font-heading); font-size: 19px; line-height: 1.3; }
 
-/* — QR care tags (admin) — */
-.qr-tag-grid { display: flex; flex-wrap: wrap; gap: 14px; }
-.qr-tag {
-  position: relative;
-  width: 172px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 12px 14px;
-  background: #fdfcf8;
-  border: 1px dashed var(--color-neutral-400);
-  break-inside: avoid;
-  cursor: pointer;
-  transition: opacity 0.15s ease, border-color 0.15s ease;
+/* — site QR code (admin) — */
+.site-qr {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 28px 36px 24px; background: #fff; border: 1px solid var(--color-divider);
 }
-.qr-tag:not(.is-off) { border-color: var(--color-accent); }
-.qr-tag.is-off { opacity: 0.4; }
-.qr-tag.is-off:hover { opacity: 0.7; }
-.qr-tag:focus-within { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.qr-tag-check { position: absolute; inset-inline-end: 7px; top: 7px; margin: 0; cursor: pointer; accent-color: var(--color-accent); }
-.qr-tag-brand { font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.3em; color: var(--color-accent); }
-.qr-tag-code { width: 112px; height: 112px; }
-.qr-tag-code canvas, .qr-tag-code img { width: 100% !important; height: 100% !important; display: block; }
-.qr-tag-name { font-family: var(--font-heading); font-size: 14px; line-height: 1.35; color: #241f18; text-align: center; }
+.site-qr-brand { font-family: var(--font-heading); font-size: 18px; letter-spacing: 0.3em; color: var(--color-accent); }
+.site-qr-code { display: block; width: 240px; height: 240px; }
+.site-qr-code canvas, .site-qr-code img { width: 100% !important; height: 100% !important; display: block; }
+.site-qr-url { font-size: 15px; letter-spacing: 0.06em; color: #241f18; }
 
-/* Printing from this tab prints only the tag sheet. Everything that is
-   neither the sheet, inside it, nor an ancestor of it is dropped from the
-   layout entirely — display:none rather than visibility:hidden, so no
-   collapsed header leaves a blank band at the top of page one. The ancestor
-   chain then gets its padding zeroed, otherwise the page gutters stack on
-   top of @page's margin and squeeze the last column off the sheet.
-   Every rule is gated on :has(#qr-print-sheet), which only matches while the
-   QR tab is open, so no other page's print output is affected. */
+/* Printing from the QR tab prints only the code. Everything that is neither
+   the sheet, inside it, nor an ancestor of it leaves the layout, and the
+   ancestors lose their padding so the page gutters don't stack on @page's
+   margin. Gated on :has(#qr-print-sheet), so no other page's print changes. */
 @media print {
   @page { size: A4; margin: 10mm; }
   body:has(#qr-print-sheet) { background: #fff !important; }
   body:has(#qr-print-sheet) *:not(:has(#qr-print-sheet)):not(#qr-print-sheet):not(#qr-print-sheet *) { display: none !important; }
-  body:has(#qr-print-sheet) :has(#qr-print-sheet) { padding: 0 !important; margin: 0 !important; max-width: none !important; }
-  /* The two below live inside the sheet, so the rule above keeps them
-     visible — they are admin chrome, not part of a tag. */
-  .qr-tag-check, .qr-sheet-head { display: none !important; }
-  /* Unticked tags, and any group left with none ticked, leave the sheet
-     entirely — otherwise an empty group still costs a gap of blank paper. */
-  .qr-tag.is-off { display: none !important; }
-  #qr-print-sheet > div:not(:has(.qr-tag:not(.is-off))) { display: none !important; }
-  /* Own gutter, so tags never sit flush to the paper edge even if a driver
-     or dialog overrides @page's margin. */
-  #qr-print-sheet { display: flex; flex-direction: column; gap: 8mm; padding: 2mm !important; }
-  .qr-tag-grid { gap: 4mm; }
-  .qr-tag { width: 58mm; opacity: 1 !important; border-color: #999 !important; }
-  .qr-tag-code { width: 32mm; height: 32mm; }
+  html:has(#qr-print-sheet), body:has(#qr-print-sheet) :has(#qr-print-sheet) { padding: 0 !important; margin: 0 !important; max-width: none !important; background: #fff !important; }
+  #qr-print-sheet { display: flex; justify-content: center; padding-top: 30mm !important; }
+  /* the white space around the code is part of it — scanners need it */
+  .site-qr { border: 0; padding: 8mm; gap: 6mm; }
+  .site-qr-brand { font-size: 20pt; }
+  .site-qr-code { width: 80mm; height: 80mm; }
+  .site-qr-url { font-size: 14pt; }
 }
 
 @media (max-width: 900px) {
@@ -293,7 +266,6 @@ h1, h2, h3, h4, .card-title { letter-spacing: -0.015em; font-weight: 600; }
   :root { --a11y-b: 84px; --a11y-p: 140px; }
 }
 @media (max-width: 560px) {
-  .qr-tag { width: calc(50% - 7px); }
   :root { --pg: 16px; --logo-h: 34px; }
   :root { --cards: repeat(2, minmax(0, 1fr)); --cards-gap: 26px 12px; --rel: repeat(2, minmax(0, 1fr)); }
   :root { --hero-min-h: auto; --hero-gap: 22px; --hero-pad: 28px var(--pg) 36px; --hero-logo-w: clamp(200px, 58vw, 700px); }

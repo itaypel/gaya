@@ -21,20 +21,6 @@ function sanitizeSite(input) {
   return out;
 }
 
-// Stand sizes: short ids we generate client-side, a label, and a shekel
-// add-on. Anything else is dropped rather than stored verbatim.
-function sanitizeStands(input) {
-  if (!Array.isArray(input)) return undefined;
-  return input
-    .filter((x) => x && typeof x.id === 'string' && /^[a-z0-9]{1,20}$/i.test(x.id))
-    .slice(0, 20)
-    .map((x) => ({
-      id: x.id,
-      label: String(x.label || '').slice(0, 60),
-      price: Math.max(0, Math.min(100000, Number(x.price) || 0))
-    }));
-}
-
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method not allowed' });
@@ -83,8 +69,6 @@ module.exports = async (req, res) => {
     extra: Array.isArray(data.extra) ? data.extra : [],
     site: sanitizeSite(data.site)
   };
-  const stands = sanitizeStands(data.stands);
-  if (stands) payload.stands = stands;
 
   // Vercel Blob enforces a 60s minimum cache, so a read can be briefly stale —
   // ifMatch turns that into a safe rejection instead of a silent lost update:

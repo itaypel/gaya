@@ -78,16 +78,7 @@ const CATALOG = [
 
 // Printed QR care tags point here — absolute, since they are scanned from
 // paper with no page context to resolve a relative path against.
-const PRODUCT_URL_BASE = 'https://gayaplants.com/#/product/';
-
-// Stand sizes a customer can pick on a product page. Managed from the admin
-// panel; these are only the starting set until the first save there.
-// price is an add-on in shekels on top of the plant's own price (0 = none).
-const STANDS_DEFAULT = [
-  { id: 's1', label: 'קטן', price: 0 },
-  { id: 's2', label: 'בינוני', price: 0 },
-  { id: 's3', label: 'גדול', price: 0 }
-];
+const SITE_URL = 'https://gayaplants.com/';
 
 const STORY_IMG_1 = BLOB_IMG_BASE + 'story1.jpg';
 const STORY_IMG_2 = BLOB_IMG_BASE + 'story2.jpg';
