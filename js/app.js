@@ -1373,7 +1373,7 @@ class App {
         <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 10px">
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך טיפול · ${prod.cat === 'hydro' ? 'הידרופוני' : 'קוקודמה'}</span>
           <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; line-height: 1.14">${esc(prod.name)}</h1>
-          <p style="margin: 0; font-size: 16px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(this.careText(prod))}</p>
+          <p style="margin: 0; font-size: 16px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(prod.desc)}</p>
           <hr class="hr">
           <table class="table">
             <tbody>
@@ -1433,11 +1433,6 @@ class App {
             ${imgs.map((im, i) => `<button class="gal-thumb${i === idx ? ' is-on' : ''}" data-act="prodImg" data-id="${i}" aria-label="תמונה ${i + 1}" aria-pressed="${i === idx}" style="background-image: url('${esc(im.url)}'); ${this.imgBgStyle(im)}"></button>`).join('')}
           </div>` : ''}`;
   }
-  careText(prod) {
-    return prod.desc + (prod.cat === 'hydro'
-      ? ' הצמח מגיע בכלי זכוכית עם רשת שורשים ואבני חלוקים. מחליפים מים כל שבועיים ומוסיפים שתי טיפות תמיסת מזון, ומשאירים את שליש השורשים העליון חשוף לאוויר.'
-      : ' הכריכה נעשית ביד בכרית קוקוס וטחב ספגנום, בקוטר המתאים לגודל הצמח, וקשורה בחוט כותנה. משקים בטבילה, בלי אדמה ובלי עציץ.');
-  }
   // ── PRODUCT ──────────────────────────────────────────────────────────
   renderProductScreen() {
     const s = this.state;
@@ -1454,7 +1449,7 @@ class App {
     const stands = this.standsFor(prod);
     const stand = this.selectedStand(prod);
     const unitPrice = prod.price + this.standPrice(stand);
-    const desc = this.careText(prod);
+    const desc = prod.desc;
     return `
     <div data-screen-label="מוצר">
       <nav style="padding: 22px var(--pg); font-size: 13px; color: var(--color-neutral-600); display: flex; gap: 8px; align-items: center">
