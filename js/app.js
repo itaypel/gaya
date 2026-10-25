@@ -75,7 +75,7 @@ class App {
     let admAuthed = false;
     try { admAuthed = sessionStorage.getItem('gaya_admin_ok') === '1'; } catch (e) {}
     this.state = {
-      screen: 'home', cat: 'kokedama', prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
+      screen: 'home', cat: CATS[0].id, prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
       admTab: 'products', site: Object.assign({}, SITE),
       ordFilter: 'all', ordOpenRef: null, ordActionError: '', pendingOrderRef: null,
@@ -186,7 +186,7 @@ class App {
   routeFromState(s) {
     switch (s.screen) {
       case 'home': return '/';
-      case 'category': return '/category/' + (s.cat === 'hydro' ? 'hydro' : 'kokedama');
+      case 'category': return '/category/' + catInfo(s.cat).id;
       case 'product': return '/product/' + encodeURIComponent(s.prod);
       case 'checkout': return '/checkout';
       case 'access': return '/access';
@@ -211,7 +211,7 @@ class App {
   parseRoute(path) {
     const parts = String(path || '').replace(/^#/, '').replace(/^\/+/, '').split('/').filter(Boolean).map((p) => decodeURIComponent(p));
     if (parts.length === 0) return { screen: 'home' };
-    if (parts[0] === 'category') return { screen: 'category', cat: parts[1] === 'hydro' ? 'hydro' : 'kokedama' };
+    if (parts[0] === 'category') return { screen: 'category', cat: catInfo(parts[1]).id };
     if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1], prodImg: 0, prodStand: null };
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
@@ -324,7 +324,7 @@ class App {
 
   setSite(k, v) { this.setState((st) => ({ site: Object.assign({}, st.site, { [k]: v }) })); }
   resetSite() { this.setState({ site: Object.assign({}, SITE) }); }
-  blankNf() { return { name: '', price: '', stock: '', cat: 'kokedama', size: '', light: '', water: '', desc: '' }; }
+  blankNf() { return { name: '', price: '', stock: '', cat: CATS[0].id, size: '', light: '', water: '', desc: '' }; }
 
   openEditor(id) {
     const p = this.catalog().find((x) => x.id === id);
@@ -332,7 +332,7 @@ class App {
     this.setState({
       admForm: true, editId: id,
       nf: { name: p.name, price: String(p.price), stock: String(this.stockOf(id)),
-            cat: p.cat === 'hydro' ? 'hydro' : 'kokedama',
+            cat: catOf(p),
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
       nfImgStatus: 'idle', nfImgError: '', nfNewId: null,
       nfImages: p.images.map((i) => Object.assign({}, i)), nfImgSel: 0, nfImgProgress: null,
@@ -345,7 +345,7 @@ class App {
     if (!editId || !name) return;
     const patch = {
       name, price: Number(nf.price) || 0,
-      cat: nf.cat === 'hydro' ? 'hydro' : undefined,
+      cat: catField(nf.cat),
       size: (nf.size || '').trim(), light: (nf.light || '').trim(),
       water: (nf.water || '').trim(), desc: (nf.desc || '').trim(),
       images: this.state.nfImages, stands: this.state.nfStands
@@ -429,11 +429,11 @@ class App {
     if (!name) return;
     const id = this.state.nfNewId || ('x' + (this.state.extra.length + 1));
     const item = {
-      id, images: this.state.nfImages, stands: this.state.nfStands, cat: nf.cat === 'hydro' ? 'hydro' : undefined,
+      id, images: this.state.nfImages, stands: this.state.nfStands, cat: catField(nf.cat),
       name, price: Number(nf.price) || 0,
       size: (nf.size || '').trim() || 'בינונית',
       light: (nf.light || '').trim() || 'אור עקיף בהיר',
-      water: (nf.water || '').trim() || (nf.cat === 'hydro' ? 'החלפת מים כל שבועיים' : 'טבילה אחת לשבוע'),
+      water: (nf.water || '').trim() || catInfo(nf.cat).water,
       desc: (nf.desc || '').trim() || 'תיאור להשלמה.',
       isNew: true
     };
@@ -563,10 +563,9 @@ class App {
     const s = this.state;
     switch (act) {
       case 'goHome': this.nav({ screen: 'home', navOpen: false }); break;
-      case 'goKokedama': this.nav({ screen: 'category', cat: 'kokedama', navOpen: false }); break;
+      case 'goCat': this.nav({ screen: 'category', cat: catInfo(id).id, navOpen: false }); break;
       case 'goCare': this.nav({ screen: 'care', navOpen: false }); break;
       case 'openCare': this.nav({ screen: 'careItem', careId: id, prodImg: 0 }); break;
-      case 'goHydro': this.nav({ screen: 'category', cat: 'hydro', navOpen: false }); break;
       case 'goCheckout': this.nav({ screen: 'checkout', open: false }); break;
       case 'goAdmin': this.nav(s.admAuthed ? { screen: 'admin' } : { screen: 'adminGate', admPass: '', admGateError: false }); break;
       case 'admGateSubmit': this.tryAdminGate(); break;
@@ -575,11 +574,10 @@ class App {
       case 'goShipping': this.nav({ screen: 'shipping' }); break;
       case 'goCatFromProduct': {
         const prod = this.catalog().find((x) => x.id === s.prod) || CATALOG[0];
-        this.nav({ screen: 'category', cat: prod.cat === 'hydro' ? 'hydro' : 'kokedama' });
+        this.nav({ screen: 'category', cat: catOf(prod) });
         break;
       }
-      case 'setKokedama': this.swapCat('kokedama'); break;
-      case 'setHydro': this.swapCat('hydro'); break;
+      case 'setCat': this.swapCat(catInfo(id).id); break;
       case 'toggleCart': this.setState((st) => ({ open: !st.open })); break;
       case 'closeCart': this.setState({ open: false }); break;
       case 'toggleNav': this.setState((st) => ({ navOpen: !st.navOpen })); break;
@@ -617,8 +615,7 @@ class App {
       case 'qrPrint': window.print(); break;
       case 'qrDownload': this.downloadSiteQr(); break;
       case 'admShowAll': this.setState({ admFilter: 'all' }); break;
-      case 'admShowKok': this.setState({ admFilter: 'kok' }); break;
-      case 'admShowHyd': this.setState({ admFilter: 'hyd' }); break;
+      case 'admShowCat': this.setState({ admFilter: 'cat:' + catInfo(id).id }); break;
       case 'admShowLow': this.setState({ admFilter: 'low' }); break;
       case 'admShowNew': this.setState({ admFilter: 'new' }); break;
       case 'admEdit': this.openEditor(id); break;
@@ -640,8 +637,7 @@ class App {
       case 'prodImgStep': this.stepProdImg(Number(el.dataset.step) || 0); break;
       case 'pickStand': this.setState({ prodStand: id }); break;
       case 'nfDropModel': this.dropModel(); break;
-      case 'nfSetKok': this.setNf('cat', 'kokedama'); break;
-      case 'nfSetHyd': this.setNf('cat', 'hydro'); break;
+      case 'nfSetCat': this.setNf('cat', catInfo(id).id); break;
       case 'nfSave': (s.editId ? this.saveEdit() : this.saveNf()); break;
       case 'nfDelete': this.removeProduct(); break;
       case 'retryCatalogSync': this.persistCatalog(); break;
@@ -1001,8 +997,7 @@ class App {
       </a>
       <nav style="display: var(--nav-display, flex); gap: 28px; font-size: 15px; margin-inline-start: auto; margin-inline-end: 8px">
         <a href="#" data-act="goHome">דף הבית</a>
-        <a href="#" data-act="goKokedama">קוקודמות</a>
-        <a href="#" data-act="goHydro">הידרופוני</a>
+        ${CATS.map((c) => `<a href="#" data-act="goCat" data-id="${c.id}">${c.label}</a>`).join('')}
         <a href="#" data-act="goCare">מדריך טיפול</a>
       </nav>
       <a class="btn btn-secondary btn-icon" href="https://wa.me/972507673034" target="_blank" rel="noopener noreferrer" aria-label="פנייה בוואטסאפ" style="margin-inline-start: auto; color: #25D366">${ICON.whatsapp}</a>
@@ -1024,8 +1019,7 @@ class App {
       </div>
       <nav style="display: flex; flex-direction: column; padding: 10px; gap: 2px; font-size: 16px">
         <a href="#" data-act="goHome" style="padding: 15px 16px">דף הבית</a>
-        <a href="#" data-act="goKokedama" style="padding: 15px 16px">קוקודמות</a>
-        <a href="#" data-act="goHydro" style="padding: 15px 16px">הידרופוני</a>
+        ${CATS.map((c) => `<a href="#" data-act="goCat" data-id="${c.id}" style="padding: 15px 16px">${c.label}</a>`).join('')}
         <a href="#" data-act="goCare" style="padding: 15px 16px">מדריך טיפול</a>
       </nav>
     </aside>`;
@@ -1043,8 +1037,7 @@ class App {
         </div>
         <div style="display: flex; flex-direction: column; gap: 11px; min-width: 0">
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.28em; color: var(--color-accent-700)">חנות</span>
-          <a href="#" data-act="goKokedama">קוקודמות</a>
-          <a href="#" data-act="goHydro">הידרופוני</a>
+          ${CATS.map((c) => `<a href="#" data-act="goCat" data-id="${c.id}">${c.label}</a>`).join('')}
         </div>
         <div style="display: flex; flex-direction: column; gap: 11px; min-width: 0">
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.28em; color: var(--color-accent-700)">מידע</span>
@@ -1231,9 +1224,9 @@ class App {
   renderHome() {
     const s = this.state;
     const site = s.site;
-    const kok = s.cat === 'kokedama';
+    const cat = catInfo(s.cat).id;
     const all = this.catalog();
-    const catItems = all.filter((p) => (kok ? p.cat !== 'hydro' : p.cat === 'hydro'));
+    const catItems = all.filter((p) => catOf(p) === cat);
     return `
     <div data-screen-label="בית">
       <section style="position: relative; min-height: var(--hero-min-h, 92vh); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--hero-gap, clamp(30px, 5vh, 56px)); padding: var(--hero-pad, clamp(56px, 10vh, 120px) var(--pg) clamp(48px, 8vh, 92px)); text-align: center; background: var(--color-bg); border-bottom: 1px solid var(--color-divider)">
@@ -1244,7 +1237,7 @@ class App {
           <hr class="hr" style="width: 64px; margin: 4px 0">
           <p style="font-size: clamp(15px, 1.2vw, 17.5px); line-height: 1.9; margin: 0; color: var(--color-neutral-700)">${esc(site.heroBody)}</p>
           <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; justify-content: center">
-            <button class="btn btn-primary" data-act="goKokedama" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta1)}</button>
+            <button class="btn btn-primary" data-act="goCat" data-id="${CATS[0].id}" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta1)}</button>
             <button class="btn btn-primary" data-act="goCare" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta2)}</button>
           </div>
         </div>
@@ -1303,8 +1296,7 @@ class App {
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">קטלוג</span>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--color-divider)">
-          <button class="btn ${kok ? 'btn-primary' : 'btn-secondary'}" data-act="setKokedama">קוקודמות</button>
-          <button class="btn ${kok ? 'btn-secondary' : 'btn-primary'}" data-act="setHydro">הידרופוני</button>
+          ${CATS.map((c) => `<button class="btn ${c.id === cat ? 'btn-primary' : 'btn-secondary'}" data-act="setCat" data-id="${c.id}">${c.label}</button>`).join('')}
           <span style="margin-inline-start: auto; align-self: center; font-size: 13px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${catItems.length} ${catItems.length === 1 ? 'פריט' : 'פריטים'}</span>
         </div>
       </section>
@@ -1324,10 +1316,9 @@ class App {
   renderCareGuide() {
     const site = this.state.site;
     const all = this.catalog();
-    const groups = [
-      { label: 'קוקודמות', items: all.filter((p) => p.cat !== 'hydro') },
-      { label: 'הידרופוני', items: all.filter((p) => p.cat === 'hydro') }
-    ].filter((g) => g.items.length);
+    const groups = CATS
+      .map((c) => ({ label: c.label, items: all.filter((p) => catOf(p) === c.id) }))
+      .filter((g) => g.items.length);
     return `
     <div data-screen-label="מדריך טיפול">
       <section style="padding: clamp(36px, 5vw, 60px) var(--pg) 84px">
@@ -1371,7 +1362,7 @@ class App {
       <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 56px; padding: 12px var(--pg) 80px; align-items: start; max-width: 1180px; margin-inline: auto">
         <div style="display: grid; gap: 14px; min-width: 0">${this.renderGallery(prod)}</div>
         <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 10px">
-          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך טיפול · ${prod.cat === 'hydro' ? 'הידרופוני' : 'קוקודמה'}</span>
+          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">מדריך טיפול · ${catInfo(prod.cat).one}</span>
           <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; line-height: 1.14">${esc(prod.name)}</h1>
           <p style="margin: 0; font-size: 16px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(prod.desc)}</p>
           <hr class="hr">
@@ -1391,17 +1382,16 @@ class App {
   // ── CATEGORY ─────────────────────────────────────────────────────────
   renderCategory() {
     const s = this.state;
-    const kok = s.cat === 'kokedama';
+    const cat = catInfo(s.cat).id;
     const all = this.catalog();
-    const catItems = all.filter((p) => (kok ? p.cat !== 'hydro' : p.cat === 'hydro'));
+    const catItems = all.filter((p) => catOf(p) === cat);
     return `
     <div data-screen-label="קטגוריה">
       <section style="padding: clamp(36px, 5vw, 56px) var(--pg) 30px">
         <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">קטלוג</span>
-        <h1 style="font-size: clamp(34px, 3.6vw, 48px); font-weight: 400; margin: 14px 0 20px">${esc(kok ? 'קוקודמות' : 'הידרופוני')}</h1>
+        <h1 style="font-size: clamp(34px, 3.6vw, 48px); font-weight: 400; margin: 14px 0 20px">${esc(catInfo(cat).label)}</h1>
         <div style="display: flex; gap: 10px; margin-top: 10px; padding-bottom: 26px; border-bottom: 1px solid var(--color-divider)">
-          <button class="btn ${kok ? 'btn-primary' : 'btn-secondary'}" data-act="goKokedama">קוקודמות</button>
-          <button class="btn ${kok ? 'btn-secondary' : 'btn-primary'}" data-act="goHydro">הידרופוני</button>
+          ${CATS.map((c) => `<button class="btn ${c.id === cat ? 'btn-primary' : 'btn-secondary'}" data-act="goCat" data-id="${c.id}">${c.label}</button>`).join('')}
           <span style="margin-inline-start: auto; align-self: center; font-size: 13px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${catItems.length} ${catItems.length === 1 ? 'פריט' : 'פריטים'}</span>
         </div>
       </section>
@@ -1454,7 +1444,7 @@ class App {
     <div data-screen-label="מוצר">
       <nav style="padding: 22px var(--pg); font-size: 13px; color: var(--color-neutral-600); display: flex; gap: 8px; align-items: center">
         <a href="#" data-act="goHome">בית</a><span style="opacity: 0.5">${ICON.crumb}</span>
-        <a href="#" data-act="goCatFromProduct">${prod.cat === 'hydro' ? 'הידרופוני' : 'קוקודמות'}</a><span style="opacity: 0.5">${ICON.crumb}</span>
+        <a href="#" data-act="goCatFromProduct">${catInfo(prod.cat).label}</a><span style="opacity: 0.5">${ICON.crumb}</span>
         <span>${esc(prod.name)}</span>
       </nav>
       <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 56px; padding: 12px var(--pg) 80px; align-items: start; max-width: 1180px; margin-inline: auto">
@@ -1474,7 +1464,7 @@ class App {
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 10px">
-          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${prod.cat === 'hydro' ? 'הידרופוני · שורשים במים' : 'קוקודמה · כריכת יד'}</span>
+          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${catInfo(prod.cat).kicker}</span>
           <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; line-height: 1.14">${esc(prod.name)}</h1>
           <span style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
             <span style="font-size: 24px; font-family: var(--font-heading); font-variant-numeric: tabular-nums">${this.fmt(unitPrice)}</span>
@@ -1496,7 +1486,7 @@ class App {
           </table>
           <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px">
             ${stock > 0 ? `<button class="btn btn-primary" data-act="addCurrent" style="flex: 1; min-height: 46px">הוספה לעגלה</button>` : `<button class="btn btn-secondary" disabled style="flex: 1; min-height: 46px">אזל מהמלאי</button>`}
-            <button class="btn btn-secondary" data-act="goKokedama" style="min-height: 46px">לקטלוג</button>
+            <button class="btn btn-secondary" data-act="goCatFromProduct" style="min-height: 46px">לקטלוג</button>
           </div>
           <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">משלוח חינם בהזמנה מעל 300 ₪ · עד חמישה ימי עסקים</p>
           ${related.length > 0 ? `
@@ -1742,8 +1732,7 @@ class App {
     const all = this.catalog();
     const rows = all.filter((p) => {
       const q = this.stockOf(p.id);
-      if (s.admFilter === 'kok') return p.cat !== 'hydro';
-      if (s.admFilter === 'hyd') return p.cat === 'hydro';
+      if (s.admFilter.startsWith('cat:')) return 'cat:' + catOf(p) === s.admFilter;
       if (s.admFilter === 'low') return q <= 2;
       if (s.admFilter === 'new') return !!p.isNew;
       return true;
@@ -1782,8 +1771,7 @@ class App {
       <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding: 24px 0">
         <div style="display: flex; gap: 10px; flex-wrap: wrap">
           <button class="btn ${s.admFilter === 'all' ? 'btn-primary' : 'btn-secondary'}" data-act="admShowAll">הכל</button>
-          <button class="btn ${s.admFilter === 'kok' ? 'btn-primary' : 'btn-secondary'}" data-act="admShowKok">קוקודמות</button>
-          <button class="btn ${s.admFilter === 'hyd' ? 'btn-primary' : 'btn-secondary'}" data-act="admShowHyd">הידרופוני</button>
+          ${CATS.map((c) => `<button class="btn ${s.admFilter === 'cat:' + c.id ? 'btn-primary' : 'btn-secondary'}" data-act="admShowCat" data-id="${c.id}">${c.label}</button>`).join('')}
           <button class="btn ${s.admFilter === 'low' ? 'btn-primary' : 'btn-secondary'}" data-act="admShowLow">מלאי נמוך</button>
           <button class="btn ${s.admFilter === 'new' ? 'btn-primary' : 'btn-secondary'}" data-act="admShowNew">חדשים</button>
         </div>
@@ -1811,7 +1799,7 @@ class App {
                 ${p.isNew ? `<span class="tag tag-accent" style="margin-inline-start: 8px">חדש</span>` : ''}
               </span>
             </span></td>
-            <td>${p.cat === 'hydro' ? 'הידרופוני' : 'קוקודמה'}</td>
+            <td>${catInfo(p.cat).one}</td>
             <td style="font-variant-numeric: tabular-nums">${this.fmt(p.price)}</td>
             <td><span class="seg" style="display: inline-flex">
               <button class="seg-opt" data-act="admDec" data-id="${p.id}" aria-label="הפחתת יחידה">${ICON.minus}</button>
@@ -1977,8 +1965,7 @@ class App {
           <div class="field"><label for="a-stock">יחידות במלאי</label><input class="input" id="a-stock" data-nf-field="stock" type="number" value="${esc(nf.stock)}" placeholder="6"></div>
           <div class="field"><label for="a-cat">קטגוריה</label>
             <div class="seg" id="a-cat">
-              <button class="seg-opt" data-act="nfSetKok" aria-pressed="${nf.cat === 'kokedama'}" style="background: ${nf.cat === 'kokedama' ? 'var(--color-accent-100)' : 'transparent'}; color: ${nf.cat === 'kokedama' ? 'var(--color-accent-800)' : 'var(--color-text)'}">קוקודמה</button>
-              <button class="seg-opt" data-act="nfSetHyd" aria-pressed="${nf.cat === 'hydro'}" style="background: ${nf.cat === 'hydro' ? 'var(--color-accent-100)' : 'transparent'}; color: ${nf.cat === 'hydro' ? 'var(--color-accent-800)' : 'var(--color-text)'}">הידרופוני</button>
+              ${CATS.map((c) => `<button class="seg-opt" data-act="nfSetCat" data-id="${c.id}" aria-pressed="${nf.cat === c.id}" style="background: ${nf.cat === c.id ? 'var(--color-accent-100)' : 'transparent'}; color: ${nf.cat === c.id ? 'var(--color-accent-800)' : 'var(--color-text)'}">${c.one}</button>`).join('')}
             </div>
           </div>
           <div class="field"><label for="a-size">גודל</label><input class="input" id="a-size" data-nf-field="size" value="${esc(nf.size)}" placeholder="בינונית"></div>

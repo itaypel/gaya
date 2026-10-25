@@ -42,7 +42,20 @@ const ORD_STATE = {
   sent: { label: 'נשלחה', tag: 'tag-outline', next: null, nextLabel: '' }
 };
 
-const STOCK = { p1: 3, p2: 6, p3: 4, p4: 2, p5: 5, p6: 3, p7: 0, p8: 7, p9: 3, p10: 2, p11: 8, p12: 5, p13: 9, p14: 4, p15: 0, p16: 1, h1: 6, h2: 3, h3: 8 };
+// Shop categories, in the order they appear in menus and tabs. The first one
+// is where the catalog opens. Kokedama products predate categories and are
+// stored with no cat field, so a missing or unknown cat reads as kokedama.
+const CATS = [
+  { id: 'boutique', label: 'עציצי בוטיק', one: 'עציץ בוטיק', kicker: 'עציץ בוטיק · קרמיקה בעבודת יד', water: 'השקיה כשהאדמה העליונה יבשה' },
+  { id: 'kokedama', label: 'קוקודמות', one: 'קוקודמה', kicker: 'קוקודמה · כריכת יד', water: 'טבילה אחת לשבוע' },
+  { id: 'hydro', label: 'הידרופוני', one: 'הידרופוני', kicker: 'הידרופוני · שורשים במים', water: 'החלפת מים כל שבועיים' }
+];
+function catInfo(id) { return CATS.find((c) => c.id === id) || CATS.find((c) => c.id === 'kokedama'); }
+function catOf(p) { return catInfo(p && p.cat).id; }
+// What to store on a product record for a category id (kokedama stays unset).
+function catField(id) { const c = catInfo(id).id; return c === 'kokedama' ? undefined : c; }
+
+const STOCK = { b1: 1, b2: 1, b3: 1, b4: 1, b5: 1, p1: 3, p2: 6, p3: 4, p4: 2, p5: 5, p6: 3, p7: 0, p8: 7, p9: 3, p10: 2, p11: 8, p12: 5, p13: 9, p14: 4, p15: 0, p16: 1, h1: 6, h2: 3, h3: 8 };
 
 // Product photos live in Vercel Blob storage (not this repo) so the admin panel
 // can replace them without a code deploy — each product's photo is uploaded to
@@ -55,6 +68,11 @@ const BLOB_IMG_BASE = 'https://n5mm0fqiav7j7uht.public.blob.vercel-storage.com/p
 const BLOB_DATA_URL = 'https://n5mm0fqiav7j7uht.public.blob.vercel-storage.com/data/catalog.json';
 
 const CATALOG = [
+  { id: 'b1', img: '/assets/images/boutique/b1.jpg', cat: 'boutique', name: 'בריכיכיטון שזור', price: 450, size: 'גדולה', light: 'אור ישיר או עקיף בהיר', water: 'השקיה כשהאדמה יבשה לגמרי', desc: 'גזעים עבים השזורים זה בזה ועלווה דקה ונטויה. פיסת פיסול חיה בכלי קרמיקה בעבודת יד.' },
+  { id: 'b2', img: '/assets/images/boutique/b2.jpg', cat: 'boutique', name: 'אופרקוליקריה', price: 450, size: 'גדולה', light: 'אור ישיר או עקיף בהיר', water: 'השקיה כשהאדמה יבשה לגמרי', desc: 'גזע אפור ומעוצב וכיפה של עלים זעירים על ענפים מזגזגים. נראית כמו עץ בונסאי בוגר.' },
+  { id: 'b3', img: '/assets/images/boutique/b3.jpg', cat: 'boutique', name: 'בריכיכיטון עלה מייפל', price: 450, size: 'גדולה', light: 'אור ישיר או עקיף בהיר', water: 'השקיה כשהאדמה יבשה לגמרי', desc: 'בסיס תפוח ושזור ועלים מחולקים בצורת עלה מייפל. אוגר מים בגזע וסלחן לשכחה.' },
+  { id: 'b4', img: '/assets/images/boutique/b4.jpg', cat: 'boutique', name: 'פכירה קלועה', price: 450, size: 'גדולה', light: 'אור עקיף בהיר', water: 'השקיה כשהשכבה העליונה יבשה', desc: 'גזעים קלועים וכיפה מלאה של עלים בכף יד. צמח מזל קלאסי, בכלי קרמיקה בעבודת יד.' },
+  { id: 'b5', img: '/assets/images/boutique/b5.jpg', cat: 'boutique', name: 'דרצנה מרגינטה', price: 450, size: 'גדולה', light: 'אור עקיף בינוני', water: 'השקיה כשהשכבה העליונה יבשה', desc: 'שני גזעים בגבהים שונים ועלים דקים בשוליים אדמדמים. עמידה וסלחנית, מתאימה גם למשרד.' },
   { id: 'p1', img: '', name: 'קוקודמה בריכיכיטון', price: 270, size: 'בינונית', light: 'אור עקיף בהיר', water: 'טבילה אחת לשבוע', desc: 'עלים דמויי קרן איל, גדלים כלפי חוץ. הצמח שנראה הכי טוב תלוי מהתקרה.' },
   { id: 'p2', img: BLOB_IMG_BASE + 'p2.jpg', name: 'קוקודמה דרצנה גולדן', price: 250, size: 'בינונית', light: 'אור עקיף בינוני', water: 'טבילה אחת לשבוע', desc: 'פס זהוב לאורך העלה הצר. עומדת זקופה ומתאימה למדף גבוה.' },
   { id: 'p3', img: BLOB_IMG_BASE + 'p3.jpg', name: 'קוקודמה דרצנה מרגינטה', price: 250, size: 'בינונית', light: 'אור עקיף בינוני', water: 'טבילה אחת לשבוע', desc: 'עלים דקים בשוליים אדמדמים. סלחנית במיוחד למי ששוכח להשקות.' },
