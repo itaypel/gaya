@@ -1258,7 +1258,7 @@ class App {
             <div class="plate" style="position: relative; flex: 1; max-width: 420px; min-height: clamp(220px, 24vw, 340px); min-width: 0; overflow: hidden"><img src="${STORY_IMG_2}${s.storyImgBust2 ? '?v=' + s.storyImgBust2 : ''}" alt="פינה בסטודיו"></div>
           </div>
           <div style="display: flex; flex-direction: column; gap: 20px; min-width: 0">
-            <div class="plate" style="position: relative; aspect-ratio: 4/5; max-width: 420px; min-width: 0; overflow: hidden"><img src="${STORY_IMG_1}${s.storyImgBust1 ? '?v=' + s.storyImgBust1 : ''}" alt="הסטודיו של GAYA"></div>
+            <div class="plate" style="position: relative; max-width: 420px; min-width: 0; overflow: hidden"><img src="${STORY_IMG_1}${s.storyImgBust1 ? '?v=' + s.storyImgBust1 : ''}" alt="הסטודיו של GAYA" style="height: auto"></div>
             <div style="display: flex; flex-direction: column; gap: 12px">
               <h3 style="font-size: 22px; font-weight: 400">${esc(site.kokedamaQ)}</h3>
               <p style="margin: 0; font-size: 15px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.kokedamaA)}</p>
@@ -1740,11 +1740,11 @@ class App {
     return `
     <section style="padding: 0 var(--pg) 30px">
       <div class="card" style="padding: clamp(18px, 2.4vw, 26px); gap: 18px; margin-top: 16px; flex-direction: row; align-items: flex-start; flex-wrap: wrap">
-        <div class="plate" style="position: relative; width: 132px; aspect-ratio: 4/5; overflow: hidden; flex: 0 0 auto"><img src="${STORY_IMG_1}${s.storyImgBust1 ? '?v=' + s.storyImgBust1 : ''}" alt="תמונת מדור הסטודיו"></div>
+        <div class="plate" style="position: relative; width: 132px; overflow: hidden; flex: 0 0 auto"><img src="${STORY_IMG_1}${s.storyImgBust1 ? '?v=' + s.storyImgBust1 : ''}" alt="תמונת מדור הסטודיו" style="height: auto"></div>
         <div style="flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 8px">
           <span class="card-kicker">מדור הסטודיו</span>
           <h2 style="font-size: 20px; font-weight: 400">התמונה בסיפור העסק</h2>
-          <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שמופיעה לצד הסיפור בדף הבית. פריים אנכי מתאים לה — היחס בעמוד הוא ארבע על חמש. את הטקסט עצמו משנים בלשונית ניהול האתר.</p>
+          <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700)">התמונה שמופיעה לצד הסיפור בדף הבית. המסגרת מתאימה את עצמה ליחס של התמונה, כך שהיא מוצגת במלואה — אנכית או לרוחב. את הטקסט עצמו משנים בלשונית ניהול האתר.</p>
           <label class="btn btn-secondary" for="a-story-img-1" style="align-self: flex-start; cursor: pointer; margin-top: 4px; ${s.storyImgStatus1 === 'uploading' ? 'opacity: 0.6; pointer-events: none' : ''}">${s.storyImgStatus1 === 'uploading' ? 'מעלה…' : 'החלפת תמונה'}</label>
           <input type="file" id="a-story-img-1" accept="image/*,.heic,.heif" data-story-img-file="1" style="display: none">
           ${s.storyImgStatus1 === 'done' ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">התמונה עודכנה — תופיע באתר החי תוך כדקה.</p>` : ''}
