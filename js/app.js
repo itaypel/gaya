@@ -1133,7 +1133,7 @@ class App {
     }
 
     const subtotal = this.subtotal();
-    const freeShip = subtotal >= 300;
+    const freeShip = subtotal >= 600;
     const shipping = pickup || freeShip ? 0 : 39;
     const items = this.cartLines().map((l) => ({ id: l.key, name: this.lineName(l), qty: l.qty, price: l.unit }));
 
@@ -1174,7 +1174,7 @@ class App {
     const s = this.state;
     const subtotal = this.subtotal();
     const pickup = s.method === 'pickup';
-    const freeShip = subtotal >= 300;
+    const freeShip = subtotal >= 600;
     const shipping = subtotal === 0 || pickup || freeShip ? 0 : 39;
     const lines = this.cartLines();
     return `
@@ -1213,7 +1213,7 @@ class App {
             <span style="font-size: 15px">סה״כ</span>
             <span style="font-family: var(--font-heading); font-size: 26px; font-variant-numeric: tabular-nums">${this.fmt(subtotal + shipping)}</span>
           </div>
-          <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">${subtotal === 0 ? 'משלוח חינם בהזמנה מעל 300 ₪.' : (pickup ? 'איסוף מהסטודיו ברחובות, בלי עלות משלוח.' : (freeShip ? 'המשלוח כלול בהזמנה.' : 'עוד ' + this.fmt(300 - subtotal) + ' למשלוח חינם.'))}</p>
+          <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">${subtotal === 0 ? 'משלוח חינם בהזמנה מעל 600 ₪.' : (pickup ? 'איסוף מהסטודיו ברחובות, בלי עלות משלוח.' : (freeShip ? 'המשלוח כלול בהזמנה.' : 'עוד ' + this.fmt(600 - subtotal) + ' למשלוח חינם.'))}</p>
           <button class="btn btn-primary btn-block" data-act="goCheckout" style="min-height: 46px">המשך להזמנה</button>
         </div>
       </div>
@@ -1235,11 +1235,6 @@ class App {
           <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.heroKicker)}</span>
           <h1 style="font-size: clamp(30px, 3.8vw, 54px); font-weight: 400; line-height: 1.1; text-wrap: pretty; max-width: 22ch">${esc(site.heroTitle)}</h1>
           <hr class="hr" style="width: 64px; margin: 4px 0">
-          <p style="font-size: clamp(15px, 1.2vw, 17.5px); line-height: 1.9; margin: 0; color: var(--color-neutral-700)">${esc(site.heroBody)}</p>
-          <div style="display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; justify-content: center">
-            <button class="btn btn-primary" data-act="goCat" data-id="${CATS[0].id}" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta1)}</button>
-            <button class="btn btn-primary" data-act="goCare" style="font-size: 17px; padding: 15px 34px">${esc(site.heroCta2)}</button>
-          </div>
         </div>
       </section>
 
@@ -1267,32 +1262,9 @@ class App {
         </div>
       </section>
 
-      <section style="padding: clamp(48px, 7vw, 86px) var(--pg); border-bottom: 1px solid var(--color-divider)">
-        <div style="display: flex; align-items: baseline; gap: 18px; margin-bottom: 30px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">II</span>
-          <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${esc(site.beyondKicker)}</span>
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: clamp(28px, 4vw, 60px); align-items: start">
-          <div style="display: flex; flex-direction: column; gap: 18px; min-width: 0">
-            <h2 style="font-size: clamp(26px, 2.7vw, 36px); font-weight: 400; line-height: 1.16; text-wrap: pretty">${esc(site.beyondTitle)}</h2>
-            <p style="margin: 0; font-size: 15.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.beyondIntro)}</p>
-            <hr class="hr" style="margin: 2px 0">
-            <p style="margin: 0; font-size: 15.5px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(site.beyondClose)}</p>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 0; min-width: 0">
-            ${[['א׳', site.series1H, site.series1B], ['ב׳', site.series2H, site.series2B], ['ג׳', site.series3H, site.series3B]].map(([num, h, b], i) => `
-            <div style="display: grid; grid-template-columns: 34px 1fr; gap: 16px; align-items: start; padding: ${i === 0 ? '0 0 22px' : (i === 2 ? '22px 0 0' : '22px 0')}">
-              <span aria-hidden="true" style="font-family: var(--font-heading); font-size: 22px; font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">${num}</span>
-              <div><h3 style="font-size: 20px; font-weight: 400; margin-bottom: 8px">${esc(h)}</h3><p style="margin: 0; font-size: 14.5px; line-height: 1.85; text-align: justify; color: var(--color-neutral-700)">${esc(b)}</p></div>
-            </div>
-            ${i < 2 ? '<hr class="hr" style="margin: 0">' : ''}`).join('')}
-          </div>
-        </div>
-      </section>
-
       <section style="padding: clamp(44px, 6vw, 68px) var(--pg) 30px; border-top: 1px solid var(--color-divider)">
         <div style="display: flex; align-items: baseline; gap: 18px">
-          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">III</span>
+          <span aria-hidden="true" style="font-family: var(--font-heading); font-size: clamp(30px, 3.4vw, 46px); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">II</span>
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">קטלוג</span>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--color-divider)">
@@ -1488,7 +1460,7 @@ class App {
             ${stock > 0 ? `<button class="btn btn-primary" data-act="addCurrent" style="flex: 1; min-height: 46px">הוספה לעגלה</button>` : `<button class="btn btn-secondary" disabled style="flex: 1; min-height: 46px">אזל מהמלאי</button>`}
             <button class="btn btn-secondary" data-act="goCatFromProduct" style="min-height: 46px">לקטלוג</button>
           </div>
-          <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">משלוח חינם בהזמנה מעל 300 ₪ · עד חמישה ימי עסקים</p>
+          <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">משלוח חינם בהזמנה מעל 600 ₪ · עד חמישה ימי עסקים</p>
           ${related.length > 0 ? `
           <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 8px">
             <div style="display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--color-divider)">
