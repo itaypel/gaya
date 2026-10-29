@@ -1,6 +1,19 @@
-const { put, BlobPreconditionFailedError } = require('@vercel/blob');
+const { getFile, putFile, GitHubConflictError } = require('./_github');
 
 const MAX_BYTES = 200 * 1024;
+const DATA_PATH = 'js/saved-data.js';
+const HEADER = '// Written by the admin panel (api/save-catalog.js commits this file on every\n' +
+  '// save) — prices, texts, stock, photos and added/removed products, merged over\n' +
+  '// the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.\n';
+
+// saved-data.js is a script, not JSON, so the page can load it without a
+// fetch: pull the object literal back out of `const SAVED_DATA = {...};`.
+function parseSaved(buf) {
+  const text = buf.toString('utf8');
+  const start = text.indexOf('{', text.indexOf('const SAVED_DATA'));
+  const end = text.lastIndexOf('}');
+  return JSON.parse(text.slice(start, end + 1));
+}
 
 // Mirrors the SITE keys in js/data.js — an allowlist so this endpoint can
 // only ever overwrite known site-copy fields, never arbitrary keys.
@@ -22,7 +35,7 @@ function sanitizeSite(input) {
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     res.status(405).json({ error: 'method not allowed' });
     return;
   }
@@ -30,6 +43,18 @@ module.exports = async (req, res) => {
   const passcode = req.headers['x-admin-passcode'];
   if (!passcode || passcode !== process.env.ADMIN_GATE_PASSCODE) {
     res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+
+  // GET hands the admin panel what's on main right now — newer than the
+  // deployed saved-data.js for the minute or so a deploy takes.
+  if (req.method === 'GET') {
+    try {
+      const file = await getFile(DATA_PATH);
+      res.status(200).json(file ? parseSaved(file.content) : { version: 0 });
+    } catch (err) {
+      res.status(500).json({ error: 'load failed', detail: String(err && err.message || err) });
+    }
     return;
   }
 
@@ -70,24 +95,24 @@ module.exports = async (req, res) => {
     site: sanitizeSite(data.site)
   };
 
-  // Vercel Blob enforces a 60s minimum cache, so a read can be briefly stale —
-  // ifMatch turns that into a safe rejection instead of a silent lost update:
-  // the write only lands if the blob is still exactly what this client last saw.
-  const putOptions = {
-    access: 'public',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-    cacheControlMaxAge: 60,
-    token: process.env.PRODUCTS_BLOB_TOKEN,
-  };
-  if (req.headers['x-catalog-etag']) putOptions.ifMatch = req.headers['x-catalog-etag'];
-
+  // The version number makes a stale panel fail loudly instead of silently
+  // undoing a save made from another tab or device: the write only lands if
+  // the client last saw exactly the version on main, and GitHub's own sha
+  // check covers two writes racing each other.
   try {
-    const blob = await put('data/catalog.json', JSON.stringify(payload), putOptions);
-    res.status(200).json({ url: blob.url, etag: blob.etag });
+    const file = await getFile(DATA_PATH);
+    const current = file ? parseSaved(file.content) : { version: 0 };
+    const seen = req.headers['x-catalog-version'];
+    if (seen !== undefined && Number(seen) !== Number(current.version || 0)) {
+      res.status(409).json({ error: 'conflict' });
+      return;
+    }
+    const version = Number(current.version || 0) + 1;
+    const content = HEADER + 'const SAVED_DATA = ' + JSON.stringify(Object.assign({ version }, payload), null, 2) + ';\n';
+    await putFile(DATA_PATH, content, 'Admin panel: update catalog and site texts (v' + version + ')', file && file.sha);
+    res.status(200).json({ version });
   } catch (err) {
-    if (err instanceof BlobPreconditionFailedError) {
+    if (err instanceof GitHubConflictError) {
       res.status(409).json({ error: 'conflict' });
       return;
     }

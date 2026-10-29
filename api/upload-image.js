@@ -1,4 +1,5 @@
-const { put } = require('@vercel/blob');
+const crypto = require('crypto');
+const { getFile, putFile, GitHubConflictError } = require('./_github');
 const convertHeic = require('heic-convert');
 const sharp = require('sharp');
 
@@ -52,33 +53,35 @@ module.exports = async (req, res) => {
     return;
   }
 
-  let outBuffer = body;
-  if (isHeic) {
-    try {
-      const jpegBuffer = await convertHeic({ buffer: body, format: 'JPEG', quality: 0.9 });
-      outBuffer = await sharp(jpegBuffer).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
-    } catch (err) {
-      res.status(422).json({ error: 'heic conversion failed', detail: String(err && err.message || err) });
-      return;
-    }
+  // Every upload is resized and re-encoded, not just HEIC: photos straight
+  // off a phone are several hundred KB each, and every one is committed to
+  // the repo and downloaded by every visitor.
+  let outBuffer;
+  try {
+    const source = isHeic ? await convertHeic({ buffer: body, format: 'JPEG', quality: 0.9 }) : body;
+    outBuffer = await sharp(source).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  } catch (err) {
+    res.status(422).json({ error: isHeic ? 'heic conversion failed' : 'image processing failed', detail: String(err && err.message || err) });
+    return;
   }
 
-  // Gallery photos get a fresh, never-reused name per upload, so they can be
-  // cached for a year — a new photo is a new URL, nothing can go stale.
-  // Story images still overwrite their fixed path, which the page references
-  // by name; those keep the 60s floor so a replacement shows within a minute.
+  // Photos are committed into the repo and served with the site. Gallery
+  // photos get a fresh, never-reused name per upload. Story images overwrite
+  // their fixed path, which the page references by name. Until the deploy
+  // the commit triggers is live, vercel.json proxies a not-yet-deployed photo
+  // from GitHub so the panel can show it right away.
   const unique = req.query.unique === '1';
+  const name = unique ? `${id}-${crypto.randomBytes(9).toString('base64url')}.jpg` : `${id}.jpg`;
+  const path = 'assets/images/products/' + name;
   try {
-    const blob = await put(`products/${id}.jpg`, outBuffer, {
-      access: 'public',
-      addRandomSuffix: unique,
-      allowOverwrite: !unique,
-      contentType: 'image/jpeg',
-      cacheControlMaxAge: unique ? 31536000 : 60,
-      token: process.env.PRODUCTS_BLOB_TOKEN,
-    });
-    res.status(200).json({ url: blob.url });
+    const existing = unique ? null : await getFile(path);
+    await putFile(path, outBuffer, 'Admin panel: upload photo ' + name, existing && existing.sha);
+    res.status(200).json({ url: '/' + path });
   } catch (err) {
+    if (err instanceof GitHubConflictError) {
+      res.status(503).json({ error: 'upload failed', detail: 'concurrent update, retry' });
+      return;
+    }
     res.status(500).json({ error: 'upload failed', detail: String(err && err.message || err) });
   }
 };

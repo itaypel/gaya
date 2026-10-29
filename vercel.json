@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/assets/images/products/:file", "destination": "https://raw.githubusercontent.com/itaypel/gaya/main/assets/images/products/:file" },
     { "source": "/((?!api/)(?!.*\\.[a-zA-Z0-9]+$).*)", "destination": "/index.html" }
   ]
 }

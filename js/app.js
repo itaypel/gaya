@@ -77,9 +77,9 @@ class App {
     this.state = {
       screen: 'home', cat: CATS[0].id, prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
-      admTab: 'products', site: Object.assign({}, SITE),
+      admTab: 'products', site: Object.assign({}, SITE, SAVED_DATA.site),
       ordFilter: 'all', ordOpenRef: null, ordActionError: '', pendingOrderRef: null,
-      admFilter: 'all', admForm: false, editId: null, edits: {}, removed: {}, stock: Object.assign({}, STOCK), extra: [],
+      admFilter: 'all', admForm: false, editId: null, edits: SAVED_DATA.edits, removed: SAVED_DATA.removed, stock: Object.assign({}, STOCK, SAVED_DATA.stock), extra: SAVED_DATA.extra,
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfNewId: null, nfStands: [],
       nfImages: [], nfImgSel: 0, nfImgProgress: null,
       prodImg: 0, prodStand: null,
@@ -124,7 +124,10 @@ class App {
     this.syncUrl(true);
     this.render();
     if (this.state.screen === 'admin' && this.state.admTab === 'orders') this.loadOrders();
-    this._catalogLoadPromise = this.loadCatalogOverrides();
+    // Visitors get the catalog from saved-data.js alone. Only the admin panel
+    // asks for what's on main, which can be a deploy ahead of this page.
+    this._catalogVersion = SAVED_DATA.version;
+    this._catalogLoadPromise = this.state.admAuthed ? this.loadCatalogOverrides() : null;
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
@@ -137,11 +140,15 @@ class App {
   }
   async loadCatalogOverrides() {
     try {
-      const res = await fetch(BLOB_DATA_URL, { cache: 'no-store' });
-      if (!res.ok) return; // 404 = no admin edits saved yet, keep the shipped defaults
-      this._catalogEtag = res.headers.get('etag') || null;
+      const res = await fetch('/api/save-catalog', { headers: { 'X-Admin-Passcode': ADMIN_GATE_PASSCODE }, cache: 'no-store' });
+      // If the latest saved data can't be read, remember that so a save
+      // can't replace it with this page's possibly older copy.
+      this._catalogLoadFailed = !res.ok;
+      if (!res.ok) return;
       const data = await res.json();
-      if (!data || typeof data !== 'object') return;
+      if (!data || typeof data !== 'object') { this._catalogLoadFailed = true; return; }
+      this._catalogVersion = Number(data.version) || 0;
+      if (!this._catalogVersion) return; // nothing saved yet, keep the shipped defaults
       this.setState({
         edits: (data.edits && typeof data.edits === 'object') ? data.edits : {},
         removed: (data.removed && typeof data.removed === 'object') ? data.removed : {},
@@ -150,7 +157,7 @@ class App {
         site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {})
       });
     } catch (e) {
-      // offline or blocked — visitors still see the last-deployed catalog
+      this._catalogLoadFailed = true;
     }
   }
   async persistCatalog() {
@@ -158,26 +165,28 @@ class App {
     // otherwise an action fired right after page load could send a stale
     // snapshot and silently undo changes saved from another session.
     if (this._catalogLoadPromise) { await this._catalogLoadPromise; this._catalogLoadPromise = null; }
+    if (this._catalogLoadFailed) await this.loadCatalogOverrides();
+    if (this._catalogLoadFailed) {
+      this.setState({ catalogSyncStatus: 'error', catalogSyncError: 'לא ניתן לטעון את הנתונים השמורים כרגע, ולכן השמירה נחסמה כדי לא למחוק אותם. נסו שוב מאוחר יותר.' });
+      return;
+    }
     this.setState({ catalogSyncStatus: 'saving' });
     const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site };
     try {
-      const headers = { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE };
-      if (this._catalogEtag) headers['X-Catalog-Etag'] = this._catalogEtag;
       const res = await fetch('/api/save-catalog', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE, 'X-Catalog-Version': String(this._catalogVersion || 0) },
         body: JSON.stringify(payload)
       });
       if (res.status === 409) {
         // Someone else (another tab/device) saved in between — refuse to
         // silently clobber it. Re-sync and let the admin retry deliberately.
-        this._catalogEtag = null;
         await this.loadCatalogOverrides();
         throw new Error('מישהו אחר שמר שינויים באותו רגע. הנתונים עודכנו לגרסה העדכנית — בדקו ונסו שוב.');
       }
       if (!res.ok) throw new Error('save failed');
       const data = await res.json().catch(() => ({}));
-      if (data.etag) this._catalogEtag = data.etag;
+      if (data.version) this._catalogVersion = data.version;
       this.setState({ catalogSyncStatus: 'saved' });
     } catch (e) {
       this.setState({ catalogSyncStatus: 'error', catalogSyncError: (e && e.message) || '' });
@@ -882,6 +891,7 @@ class App {
   tryAdminGate() {
     if (this.state.admPass === ADMIN_GATE_PASSCODE) {
       try { sessionStorage.setItem('gaya_admin_ok', '1'); } catch (e) {}
+      if (!this._catalogLoadPromise) this._catalogLoadPromise = this.loadCatalogOverrides();
       const pendingRef = this.state.pendingOrderRef;
       this.nav(pendingRef
         ? { screen: 'admin', admAuthed: true, admPass: '', admTab: 'orders', ordOpenRef: pendingRef, pendingOrderRef: null }

@@ -106,12 +106,15 @@ module.exports = async (req, res) => {
   };
 
   // Persisting is the durable record — do it before the email so the order
-  // is never lost even if Gmail is slow, down, or misconfigured.
+  // is never lost even if Gmail is slow, down, or misconfigured. If the store
+  // itself is down (e.g. suspended for hitting plan limits) the email becomes
+  // the only record, so carry on and send it rather than turn the customer away.
+  let saved = true;
   try {
     await appendOrder(storedOrder);
   } catch (err) {
-    res.status(500).json({ error: 'save failed', detail: String(err && err.message || err) });
-    return;
+    saved = false;
+    console.error('order save failed', orderId, err);
   }
 
   // Push is a best-effort second channel — the order is already saved, so a
@@ -154,9 +157,15 @@ module.exports = async (req, res) => {
       to: NOTIFY_TO,
       replyTo: emailStr || undefined,
       subject: `הזמנה חדשה #${orderId} — ${safeName}`,
-      text,
+      text: saved ? text : text + '\n\n⚠️ ההזמנה לא נשמרה בפאנל הניהול (האחסון לא זמין) — המייל הזה הוא הרישום היחיד שלה.',
     });
   } catch (err) {
+    if (!saved) {
+      // Neither the store nor email took it — the order exists nowhere, so
+      // the customer must be told it did not go through.
+      res.status(500).json({ error: 'save failed', detail: String(err && err.message || err) });
+      return;
+    }
     // The order is already saved and visible in the admin panel even though
     // email failed — but we still report an error so a broken mail config
     // doesn't silently go unnoticed.
