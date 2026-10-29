@@ -136,7 +136,7 @@ class App {
   setState(patch) {
     const p = typeof patch === 'function' ? patch(this.state) : patch;
     Object.assign(this.state, p);
-    this.render();
+    if (!this._skipRender) this.render();
   }
   async loadCatalogOverrides() {
     try {
@@ -664,6 +664,16 @@ class App {
   }
   handleChange(e) {
     const t = e.target;
+    // A text field commits on blur, which comes between the press and the
+    // release of a click elsewhere. Re-rendering then replaced the button
+    // under the pointer, so clicking "save" straight from a field was
+    // swallowed and needed a second click. The field already shows its
+    // value, so store it without rendering; the click's own update renders.
+    const typed = t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['file', 'checkbox', 'radio'].includes(t.type));
+    this._skipRender = typed;
+    try { this.applyChange(t); } finally { this._skipRender = false; }
+  }
+  applyChange(t) {
     if (t.dataset.siteKey) this.setSite(t.dataset.siteKey, t.value);
     else if (t.dataset.nfField) this.setNf(t.dataset.nfField, t.value);
     else if (t.dataset.admPass) this.state.admPass = t.value;
