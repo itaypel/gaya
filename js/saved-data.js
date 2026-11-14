@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 17,
+  "version": 18,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -484,6 +484,23 @@ const SAVED_DATA = {
         {
           "url": "/assets/images/products/x9-5UiyeCtQLQ6-.jpg",
           "pos": "28.8% 94.2%",
+          "fit": "cover"
+        }
+      ],
+      "stands": []
+    },
+    "x7": {
+      "name": "דרצנה מרגינטה מעוצבת",
+      "price": 0,
+      "cat": "boutique",
+      "size": "120- 180 ס\"מ",
+      "light": "בינונית- גבוהה (לא שמש ישירה)",
+      "water": "השקיה כשהאדמה העליונה יבשה",
+      "desc": "דרצנה מרגינטה היא צמח בית מרשים בעל מראה ייחודי ואלגנטי. היא מתאפיינת בגבעולים זקופים ודקים, שבראשם צומחים עלים ארוכים וצרים בגוון ירוק עם שוליים אדמדמים. המבנה הפיסולי שלה מעניק לחלל מראה מודרני, נקי ויוקרתי\nתאורה: אור טבעי בינוני עד חזק ומסונן. יכולה להסתגל גם לתאורה נמוכה יותר, אך הצמיחה תהיה איטית.\n\nהשקיה: להשקות כאשר האדמה מתייבשת בחלקה העליון. להימנע מעודפי מים.",
+      "images": [
+        {
+          "url": "/assets/images/products/x7-1M8UGitjO7Ni.jpg",
+          "pos": "50% 50%",
           "fit": "cover"
         }
       ],
