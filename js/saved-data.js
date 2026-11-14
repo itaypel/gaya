@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 23,
+  "version": 24,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -412,7 +412,7 @@ const SAVED_DATA = {
     },
     "b3": {
       "name": "בריכיכיטון - עץ האהבה",
-      "price": 350,
+      "price": 400,
       "cat": "boutique",
       "size": "60 - 80 ס\"מ",
       "light": "מקום מואר היטב",
