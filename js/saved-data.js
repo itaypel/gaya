@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 6,
+  "version": 7,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -451,6 +451,23 @@ const SAVED_DATA = {
       "images": [
         {
           "url": "/assets/images/boutique/b5.jpg"
+        }
+      ],
+      "stands": []
+    },
+    "x2": {
+      "name": "אלוקסיה אוזן פיל בכד אבן",
+      "price": 0,
+      "cat": "boutique",
+      "size": "120- 180 ס\"מ",
+      "light": "בינונית- גבוהה (לא שמש ישירה)",
+      "water": "השקיה כשהאדמה העליונה יבשה",
+      "desc": "הכניסו הביתה מראה טרופי ומרשים עם צמח אוזן פיל, המתאפיין בעלים גדולים ובולטים שמוסיפים לחלל נוכחות טבעית וייחודית. הוא מתאים לסלון, לפינת עבודה או למרפסת מוגנת, ומשתלב היטב בעיצוב מודרני, טבעי או טרופי.\n\nטיפול בקצרה: הצמח אוהב מקום מואר ללא שמש ישירה, אדמה לחה אך מנוקזת היטב וסביבה חמימה. מומלץ להשקות כשהשכבה העליונה של האדמה מתחילה להתייבש",
+      "images": [
+        {
+          "url": "/assets/images/products/x2-bI9u5gh7avpu.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
         }
       ],
       "stands": []
