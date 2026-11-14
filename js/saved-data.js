@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 27,
+  "version": 28,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -407,7 +407,9 @@ const SAVED_DATA = {
       "desc": "האופרקוליקריה היא צמח אספנים מרהיב ומיוחד, הידוע במראה הבונסאי הטבעי שלו. היא מתאפיינת בגזע מעובה ומפותל, ענפים בעלי מבנה פיסולי ועלים קטנים ועדינים היוצרים ניגוד מרהיב בין הגזע המרשים לעלווה האוורירית.\n\nעם השנים הגזע מקבל אופי ייחודי ומראה עתיק, שהופך כל צמח לפריט עיצובי חד-פעמי\nתאורה: מקום מואר מאוד, עם שמש ישירה הדרגתית בהתאם להסתגלות הצמח.\n\nהשקיה: להשקות היטב ולאפשר למצע להתייבש בין השקיות",
       "images": [
         {
-          "url": "/assets/images/boutique/b2.jpg"
+          "url": "/assets/images/products/b2-7dt2v5f1Ewo_.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
         }
       ],
       "stands": []
