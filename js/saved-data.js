@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 29,
+  "version": 30,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -421,7 +421,7 @@ const SAVED_DATA = {
       "size": "60 - 80 ס\"מ",
       "light": "מקום מואר היטב",
       "water": "כאשר האדמה יבשה לחלוטין",
-      "desc": "",
+      "desc": "עץ האהבה (ברכיכיטון אוסטרלי) מתאפיין בגזע ושורשים מפותלים וייחודיים המזכירים שתי דמויות חבוקות, מה שהופך אותו למתנה המושלמת לחנוכת בית, יום נישואין, או פשוט כדי לפנק את עצמכם בפינה ירוקה ומעוררת השראה.\n* תאורה: אוהב אור רב – מומלץ למקם בחלל פנים מואר היטב (סמוך לחלון) או במרפסת מוצלת.\n* השקיה: מעט זה הרבה! יש להשקות רק כאשר האדמה יבשה לחלוטין (בדרך כלל אחת לשבוע-שבועיים, בהתאם לעונה",
       "images": [
         {
           "url": "/assets/images/products/b3-U-Kbi94yw3dH.jpg",
