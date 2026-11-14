@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 16,
+  "version": 17,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -467,6 +467,23 @@ const SAVED_DATA = {
         {
           "url": "/assets/images/products/x2-bI9u5gh7avpu.jpg",
           "pos": "50% 50%",
+          "fit": "cover"
+        }
+      ],
+      "stands": []
+    },
+    "x9": {
+      "name": "שפלירה",
+      "price": 0,
+      "cat": "boutique",
+      "size": "150 - 200 סמ",
+      "light": "בינונית- גבוהה (לא שמש ישירה)",
+      "water": "כאשר השכבה העליונה יבשה",
+      "desc": "השפלרה היא צמח נוי אהוב ומרשים, המתאפיין בעלים מיוחדים המזכירים בצורתם מטרייה קטנה, עם עלעלים המסודרים במעגל סביב מרכז משותף. העלווה הירוקה והעשירה מעניקה לצמח מראה מלא, רענן ואלגנטי, שהופך אותו לתוספת מושלמת לבית ולמשרד\nתאורה: אור טבעי בינוני עד חזק ומסונן. יכולה להסתגל גם לתנאי תאורה נמוכים יותר.\n\nהשקיה: להשקות כאשר השכבה העליונה של האדמה מתייבשת",
+      "images": [
+        {
+          "url": "/assets/images/products/x9-5UiyeCtQLQ6-.jpg",
+          "pos": "28.8% 94.2%",
           "fit": "cover"
         }
       ],
