@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 25,
+  "version": 26,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -452,7 +452,9 @@ const SAVED_DATA = {
       "desc": "דרצנה מרגינטה היא צמח בית מרשים בעל מראה ייחודי ואלגנטי. היא מתאפיינת בגבעולים זקופים ודקים, שבראשם צומחים עלים ארוכים וצרים בגוון ירוק עם שוליים אדמדמים. המבנה הפיסולי שלה מעניק לחלל מראה מודרני, נקי ויוקרתי.\nתאורה: אור טבעי בינוני עד חזק ומסונן. יכולה להסתגל גם לתאורה נמוכה יותר, אך הצמיחה תהיה איטית.\n\nהשקיה: להשקות כאשר האדמה מתייבשת בחלקה העליון.",
       "images": [
         {
-          "url": "/assets/images/boutique/b5.jpg"
+          "url": "/assets/images/products/b5-JjmepYx70wVM.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
         }
       ],
       "stands": []
