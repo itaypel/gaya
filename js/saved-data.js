@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 19,
+  "version": 20,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -432,7 +432,7 @@ const SAVED_DATA = {
       "size": "90 - 100 ס\"מ",
       "light": "מקום מואר היטב",
       "water": "השקיה כשהשכבה העליונה יבשה",
-      "desc": "",
+      "desc": "הפכירה, המכונה גם \"עץ הכסף\", היא צמח בית מרשים ואהוב במיוחד בזכות המראה הייחודי והאלגנטי שלה. היא מתאפיינת בגזע מעובה, שלעיתים שזור בצורת צמה, ובעלים ירוקים ומבריקים בצורת כף יד.\n\nעל פי מסורת הפנג שואי, הפכירה מסמלת שפע, הצלחה, מזל ושגשוג, ולכן נחשבת למתנה נפלאה לבית חדש, למשרד ולעסק.\nתאורה: אור טבעי חזק ומסונן, ללא שמש ישירה חזקה.\n\nהשקיה: להשקות כאשר החלק העליון של האדמה מתייבש.",
       "images": [
         {
           "url": "/assets/images/boutique/b4.jpg"
