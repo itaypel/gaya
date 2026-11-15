@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 30,
+  "version": 31,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -395,7 +395,8 @@ const SAVED_DATA = {
           "fit": "cover"
         }
       ],
-      "stands": []
+      "stands": [],
+      "sizeCat": "medium"
     },
     "b2": {
       "name": "אופרקוליקריה - עץ הגירף",
@@ -747,5 +748,22 @@ const SAVED_DATA = {
     "series3B": "עצים מעוצבים בקפידה, המגלמים את אמנות הדיוק והסבלנות. כל עץ בונסאי בסטודיו שלנו הוא סיפור של זמן, צמיחה ואופי ייחודי.",
     "beyondClose": "אנחנו מזמינים אתכם להתרשם מהאומנות שלנו ומהקסם שהצמחים מביאים איתם. בואו להכניס את GAYA לחיים שלכם.",
     "footer": "GAYA · סטודיו צמחים, רחובות · גאיה, מס׳ עוסק 300286986 · 050-7673034 · giljabes22@gmail.com"
-  }
+  },
+  "potColors": [
+    {
+      "id": "blue",
+      "label": "כחול",
+      "hex": "#3e5f7e"
+    },
+    {
+      "id": "gray",
+      "label": "אפור",
+      "hex": "#8e8f8a"
+    },
+    {
+      "id": "purple",
+      "label": "סגול",
+      "hex": "#6e5480"
+    }
+  ]
 };
