@@ -41,6 +41,16 @@ function catOf(p) { return catInfo(p && p.cat).id; }
 // What to store on a product record for a category id (kokedama stays unset).
 function catField(id) { const c = catInfo(id).id; return c === 'kokedama' ? undefined : c; }
 
+// Pot colors a boutique plant can be ordered in — same price for every color.
+// The owner edits this list in the admin panel; it's saved as potColors in
+// saved-data.js and replaces these defaults. ids go into cart/order keys, so
+// keep them short [a-z0-9].
+const POT_COLORS = [
+  { id: 'blue', label: 'כחול', hex: '#3e5f7e' },
+  { id: 'gray', label: 'אפור', hex: '#8e8f8a' },
+  { id: 'purple', label: 'סגול', hex: '#6e5480' }
+];
+
 const STOCK = { b1: 1, b2: 1, b3: 1, b4: 1, b5: 1, p1: 3, p2: 6, p3: 4, p4: 2, p5: 5, p6: 3, p7: 0, p8: 7, p9: 3, p10: 2, p11: 8, p12: 5, p13: 9, p14: 4, p15: 0, p16: 1, h1: 6, h2: 3, h3: 8 };
 
 // Product photos ship with the site, in assets/images/products/. Uploads from

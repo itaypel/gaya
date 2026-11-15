@@ -82,7 +82,8 @@ class App {
       admFilter: 'all', admForm: false, editId: null, edits: SAVED_DATA.edits, removed: SAVED_DATA.removed, stock: Object.assign({}, STOCK, SAVED_DATA.stock), extra: SAVED_DATA.extra,
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfNewId: null, nfStands: [],
       nfImages: [], nfImgSel: 0, nfImgProgress: null,
-      prodImg: 0, prodStand: null,
+      prodImg: 0, prodStand: null, prodColor: null,
+      potColors: Array.isArray(SAVED_DATA.potColors) ? SAVED_DATA.potColors : POT_COLORS,
       admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
       orders: [], ordersStatus: 'idle', ordersError: '',
@@ -154,7 +155,8 @@ class App {
         removed: (data.removed && typeof data.removed === 'object') ? data.removed : {},
         stock: Object.assign({}, STOCK, (data.stock && typeof data.stock === 'object') ? data.stock : {}),
         extra: Array.isArray(data.extra) ? data.extra : [],
-        site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {})
+        site: Object.assign({}, SITE, (data.site && typeof data.site === 'object') ? data.site : {}),
+        potColors: Array.isArray(data.potColors) ? data.potColors : POT_COLORS
       });
     } catch (e) {
       this._catalogLoadFailed = true;
@@ -171,7 +173,7 @@ class App {
       return;
     }
     this.setState({ catalogSyncStatus: 'saving' });
-    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site };
+    const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site, potColors: this.state.potColors };
     try {
       const res = await fetch('/api/save-catalog', {
         method: 'POST',
@@ -221,7 +223,7 @@ class App {
     const parts = String(path || '').replace(/^#/, '').replace(/^\/+/, '').split('/').filter(Boolean).map((p) => decodeURIComponent(p));
     if (parts.length === 0) return { screen: 'home' };
     if (parts[0] === 'category') return { screen: 'category', cat: catInfo(parts[1]).id };
-    if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1], prodImg: 0, prodStand: null };
+    if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1], prodImg: 0, prodStand: null, prodColor: null };
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
     if (parts[0] === 'terms') return { screen: 'terms' };
@@ -471,34 +473,47 @@ class App {
     });
   }
   // With no explicit stand, a product goes in with its cheapest stand — the
-  // same one its card's "החל מ" price is quoted on.
-  add(id, standId) {
+  // same one its card's "החל מ" price is quoted on — and, for a boutique
+  // pot, in the first color on the list.
+  add(id, standId, colorId) {
     const p = this.catalog().find((x) => x.id === id);
     const stand = standId !== undefined ? standId : (this.defaultStand(p) || {}).id;
-    this.setQty(this.cartKey(id, stand), 1);
+    const color = colorId !== undefined ? colorId : (this.colorsFor(p)[0] || {}).id;
+    this.setQty(this.cartKey(id, stand, color), 1);
     const narrow = window.innerWidth < 900;
     if (!narrow) this.setState({ open: true });
   }
   cartCount() { return Object.values(this.state.cart).reduce((a, b) => a + b, 0); }
 
   // ── stand sizes ──────────────────────────────────────────────────────
-  // Cart lines are keyed by product and stand, so the same plant on two
-  // stands is two lines. A product sold without a stand choice keys by id.
-  cartKey(id, standId) { return standId ? id + '~' + standId : id; }
+  // Cart lines are keyed by product, stand and pot color, so the same plant
+  // on two stands (or in two colors) is two lines: id~stand~color, with an
+  // empty stand segment when there's none. Keys without a color stay id~stand
+  // or just id, as they were before colors existed.
+  cartKey(id, standId, colorId) {
+    if (colorId) return id + '~' + (standId || '') + '~' + colorId;
+    return standId ? id + '~' + standId : id;
+  }
   cartLines() {
     const s = this.state;
     const all = this.catalog();
     return Object.keys(s.cart).map((key) => {
-      const [id, standId] = key.split('~');
+      const [id, standId, colorId] = key.split('~');
       const p = all.find((x) => x.id === id);
       if (!p) return null;
       const stand = standId ? (this.standsFor(p).find((x) => x.id === standId) || null) : null;
+      // A color deleted from the list after it went in the cart keeps its
+      // line, named by its id, rather than vanishing from the order.
+      const color = colorId ? (this.potColorList().find((c) => c.id === colorId) || { id: colorId, label: colorId, hex: '' }) : null;
       const unit = p.price + this.standPrice(stand);
       const qty = s.cart[key];
-      return { key, id, p, stand, qty, unit, total: unit * qty, name: p.name };
+      return { key, id, p, stand, color, qty, unit, total: unit * qty, name: p.name };
     }).filter(Boolean);
   }
-  lineName(l) { return l.stand ? `${l.name} · סטנד ${l.stand.label}` : l.name; }
+  lineName(l) {
+    const name = l.stand ? `${l.name} · סטנד ${l.stand.label}` : l.name;
+    return l.color ? `${name} · כד ${l.color.label}` : name;
+  }
   standPrice(stand) { return stand ? Math.max(0, Number(stand.price) || 0) : 0; }
   // Each plant's stand sizes are set by hand in its edit screen; a plant
   // with none is sold with no stand choice.
@@ -518,6 +533,17 @@ class App {
     const min = Math.min(...adds);
     return { amount: p.price + min, from: Math.max(...adds) > min };
   }
+  // ── pot colors ───────────────────────────────────────────────────────
+  // One shop-wide list (admin → ניהול האתר), offered on every boutique pot.
+  potColorList() { return Array.isArray(this.state.potColors) ? this.state.potColors : []; }
+  colorsFor(p) { return p && catOf(p) === 'boutique' ? this.potColorList() : []; }
+  selectedColor(p) {
+    const list = this.colorsFor(p);
+    return list.find((c) => c.id === this.state.prodColor) || list[0] || null;
+  }
+  potHex(c) { return c && /^#[0-9a-fA-F]{6}$/.test(c.hex || '') ? c.hex : 'transparent'; }
+  newPotColorId() { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  editPotColors(fn) { this.setState((st) => ({ potColors: fn(Array.isArray(st.potColors) ? st.potColors : []) })); }
   newStandId() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
   // The open product's stand list, saved with the product.
   editNfStands(fn) {
@@ -592,12 +618,12 @@ class App {
       case 'toggleNav': this.setState((st) => ({ navOpen: !st.navOpen })); break;
       case 'closeNav': this.setState({ navOpen: false }); break;
       case 'openCartBar': this.setState({ open: true }); break;
-      case 'open': this.nav({ screen: 'product', prod: id, prodImg: 0, prodStand: null }); break;
+      case 'open': this.nav({ screen: 'product', prod: id, prodImg: 0, prodStand: null, prodColor: null }); break;
       case 'add': this.add(id); break;
       case 'qtyInc': this.setQty(id, 1); break;
       case 'qtyDec': this.setQty(id, -1); break;
       case 'qtyRemove': this.setQty(id, -(s.cart[id] || 0)); break;
-      case 'addCurrent': { const cp = this.catalog().find((x) => x.id === s.prod); this.add(s.prod, (this.selectedStand(cp) || {}).id); break; }
+      case 'addCurrent': { const cp = this.catalog().find((x) => x.id === s.prod); this.add(s.prod, (this.selectedStand(cp) || {}).id, (this.selectedColor(cp) || {}).id); break; }
       case 'pickShip': this.setState({ method: 'ship' }); break;
       case 'pickPickup': this.setState({ method: 'pickup' }); break;
       case 'payCard': this.setState({ pay: 'card' }); break;
@@ -645,6 +671,11 @@ class App {
       case 'prodImg': this.setState({ prodImg: Number(id) || 0 }); break;
       case 'prodImgStep': this.stepProdImg(Number(el.dataset.step) || 0); break;
       case 'pickStand': this.setState({ prodStand: id }); break;
+      case 'pickColor': this.setState({ prodColor: id }); break;
+      case 'potColorAdd': this.editPotColors((l) => l.concat([{ id: this.newPotColorId(), label: 'צבע חדש', hex: '#8e8f8a' }])); break;
+      case 'potColorDel': this.editPotColors((l) => l.filter((_, i) => i !== Number(id))); break;
+      case 'potColorUp': this.editPotColors((l) => this.moveInList(l, Number(id), -1)); break;
+      case 'potColorDown': this.editPotColors((l) => this.moveInList(l, Number(id), 1)); break;
       case 'nfDropModel': this.dropModel(); break;
       case 'nfSetCat': this.setNf('cat', catInfo(id).id); break;
       case 'nfSave': (s.editId ? this.saveEdit() : this.saveNf()); break;
@@ -680,6 +711,8 @@ class App {
     else if (t.dataset.nfImgFile) { const fs = Array.from(t.files || []); t.value = ''; if (fs.length) this.uploadProductImages(this.state.editId || this.state.nfNewId, fs); }
     else if (t.dataset.nfStandLabel !== undefined) { const i = Number(t.dataset.nfStandLabel), v = t.value; this.editNfStands((l) => this.patchStandList(l, i, { label: v })); }
     else if (t.dataset.nfStandPrice !== undefined) { const i = Number(t.dataset.nfStandPrice), v = t.value; this.editNfStands((l) => this.patchStandList(l, i, { price: v })); }
+    else if (t.dataset.potColorLabel !== undefined) { const i = Number(t.dataset.potColorLabel), v = t.value.trim().slice(0, 40); if (v) this.editPotColors((l) => l.map((c, j) => (j === i ? Object.assign({}, c, { label: v }) : c))); }
+    else if (t.dataset.potColorHex !== undefined) { const i = Number(t.dataset.potColorHex), v = t.value; if (/^#[0-9a-fA-F]{6}$/.test(v)) this.editPotColors((l) => l.map((c, j) => (j === i ? Object.assign({}, c, { hex: v }) : c))); }
     else if (t.dataset.storyImgFile) { const f = t.files && t.files[0]; const slot = t.dataset.storyImgFile; t.value = ''; if (f) this.uploadStoryImage(slot, f); }
   }
 
@@ -1216,6 +1249,7 @@ class App {
                 <span style="font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--color-neutral-700)">${this.fmt(l.total)}</span>
               </div>
               ${l.stand ? `<span style="font-size: 13px; color: var(--color-neutral-600)">סטנד ${esc(l.stand.label)}</span>` : ''}
+              ${l.color ? `<span class="cart-color"><span class="color-dot" aria-hidden="true" style="background: ${this.potHex(l.color)}"></span>כד ${esc(l.color.label)}</span>` : ''}
               <div style="display: flex; align-items: center; gap: 14px; margin-top: 3px">
                 <div class="seg">
                   <button class="seg-opt" data-act="qtyDec" data-id="${esc(l.key)}" aria-label="הפחתה">${ICON.minus15}</button>
@@ -1431,6 +1465,8 @@ class App {
     const stands = this.standsFor(prod);
     const stand = this.selectedStand(prod);
     const unitPrice = prod.price + this.standPrice(stand);
+    const colors = this.colorsFor(prod);
+    const color = this.selectedColor(prod);
     const desc = prod.desc;
     return `
     <div data-screen-label="מוצר">
@@ -1472,6 +1508,11 @@ class App {
               ${stands.length ? `<tr><td style="color: var(--color-neutral-600); vertical-align: top; padding-top: 15px">גודל הסטנד לבחירה</td><td>
                 <div class="stand-opts" role="radiogroup" aria-label="גודל הסטנד">
                   ${stands.map((x) => `<button class="stand-opt" role="radio" aria-checked="${!!stand && stand.id === x.id}" data-act="pickStand" data-id="${esc(x.id)}">${esc(x.label)}${this.standPrice(x) ? `<span class="stand-add">+${this.fmt(this.standPrice(x))}</span>` : ''}</button>`).join('')}
+                </div>
+              </td></tr>` : ''}
+              ${colors.length ? `<tr><td style="color: var(--color-neutral-600); vertical-align: top; padding-top: 15px">צבע הכד</td><td>
+                <div class="stand-opts" role="radiogroup" aria-label="צבע הכד">
+                  ${colors.map((c) => `<button class="stand-opt color-opt" role="radio" aria-checked="${!!color && color.id === c.id}" data-act="pickColor" data-id="${esc(c.id)}"><span class="color-dot" aria-hidden="true" style="background: ${this.potHex(c)}"></span>${esc(c.label)}</button>`).join('')}
                 </div>
               </td></tr>` : ''}
             </tbody>
@@ -1899,6 +1940,7 @@ class App {
             </div>`).join('')}
           </div>
         </div>`).join('')}
+        ${this.renderAdminPotColors(numerals[SITE_FIELDS.length] || String(SITE_FIELDS.length + 1))}
       </div>
       <div style="display: flex; gap: 12px; align-items: center; margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--color-divider); flex-wrap: wrap">
         <button class="btn btn-primary" data-act="siteSave">${s.catalogSyncStatus === 'saving' ? 'שומר…' : 'שמירת שינויים'}</button>
@@ -1910,6 +1952,35 @@ class App {
         : s.catalogSyncStatus === 'error' ? `<p style="margin: 14px 0 0; font-size: 12.5px; color: #b3261e">${esc(s.catalogSyncError) || 'השמירה נכשלה, השינוי נשאר רק אצלך.'} <button class="btn btn-ghost" data-act="siteSave" style="border: 0; padding: 0; font-size: 12.5px; text-decoration: underline">לנסות שוב</button></p>`
         : ''}
     </section>`;
+  }
+
+  // The pot colors boutique customers choose from, edited like a product's
+  // stand list and saved with the site texts.
+  renderAdminPotColors(numeral) {
+    const rows = this.potColorList();
+    return `
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; align-items: baseline; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--color-divider)">
+            <span aria-hidden="true" style="font-family: var(--font-heading); font-size: 26px; font-weight: 300; line-height: 1; color: color-mix(in srgb, var(--color-accent) 42%, transparent)">${numeral}</span>
+            <h2 style="font-size: 21px; font-weight: 400">צבעי כדים</h2>
+          </div>
+          ${rows.length ? `
+          <div style="display: flex; flex-direction: column; gap: 8px; max-width: 520px">
+            <div class="pot-color-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>גוון</span><span>שם הצבע</span><span></span></div>
+            ${rows.map((c, i) => `
+            <div class="pot-color-row">
+              <input class="pot-color-hex" type="color" id="pot-color-hex-${i}" data-pot-color-hex="${i}" value="${esc(this.potHex(c) === 'transparent' ? '#8e8f8a' : c.hex.toLowerCase())}" aria-label="הגוון של ${esc(c.label)}">
+              <input class="input" id="pot-color-label-${i}" data-pot-color-label="${i}" value="${esc(c.label)}" maxlength="40" placeholder="למשל ירוק זית" aria-label="שם הצבע ${i + 1}">
+              <span class="nf-stand-tools">
+                <button class="btn btn-secondary btn-icon" data-act="potColorUp" data-id="${i}" aria-label="להזיז את ${esc(c.label)} למעלה" ${i === 0 ? 'disabled' : ''}><span style="display: block; transform: rotate(90deg)">${ICON.crumb}</span></button>
+                <button class="btn btn-secondary btn-icon" data-act="potColorDown" data-id="${i}" aria-label="להזיז את ${esc(c.label)} למטה" ${i === rows.length - 1 ? 'disabled' : ''}><span style="display: block; transform: rotate(-90deg)">${ICON.crumb}</span></button>
+                <button class="btn btn-secondary btn-icon" data-act="potColorDel" data-id="${i}" aria-label="להסיר את ${esc(c.label)}">${ICON.close}</button>
+              </span>
+            </div>`).join('')}
+          </div>` : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">אין צבעים ברשימה — עציצי הבוטיק נמכרים בלי בחירת צבע כד.</p>`}
+          <button class="btn btn-secondary" data-act="potColorAdd" style="align-self: flex-start; gap: 8px" ${rows.length >= 20 ? 'disabled' : ''}>${ICON.plus15}<span>הוספת צבע</span></button>
+          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">הלקוח בוחר צבע כד בכל עציץ בוטיק, באותו מחיר. הצבע הראשון נבחר מראש, והסדר כאן הוא הסדר שהלקוח רואה. נשמר בלחיצה על "שמירת שינויים".</p>
+        </div>`;
   }
 
   // ── QR CARE TAGS ─────────────────────────────────────────────────────
