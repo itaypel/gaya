@@ -6,13 +6,13 @@ function esc(str) {
 }
 function nl2br(str) { return esc(str).replace(/\n/g, '<br>'); }
 
-// Deterrent only, not real access control: this runs entirely in the visitor's
-// browser, so the passcode below is visible to anyone who opens the page source
-// and can be bypassed by editing local state in devtools. It exists only to keep
-// ordinary shoppers from wandering into the staff screens via the footer link.
-// Once real orders/customers exist, this must be replaced by server-side auth —
-// the admin screen must not ship in the same public bundle as the storefront.
-const ADMIN_GATE_PASSCODE = 'oren5422';
+// The staff passcode is never in this file: the gate sends what was typed to
+// /api/admin-check, and every admin request carries it for the server to
+// check again. It is kept in sessionStorage, so it is gone when the tab closes.
+const ADMIN_PASS_KEY = 'gaya_admin_pass';
+function storedAdminPass() {
+  try { return sessionStorage.getItem(ADMIN_PASS_KEY) || ''; } catch (e) { return ''; }
+}
 
 // Public VAPID key for Web Push — safe to ship client-side by design (the
 // matching private key that actually authorizes sends stays server-only).
@@ -73,7 +73,7 @@ class App {
   constructor(root) {
     this.root = root;
     let admAuthed = false;
-    try { admAuthed = sessionStorage.getItem('gaya_admin_ok') === '1'; } catch (e) {}
+    admAuthed = !!storedAdminPass();
     this.state = {
       screen: 'home', cat: CATS[0].id, prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
@@ -83,7 +83,7 @@ class App {
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfNewId: null, nfStands: [],
       nfImages: [], nfImgSel: 0, nfImgProgress: null,
       prodImg: 0, prodStand: null,
-      admAuthed, admPass: '', admGateError: false, catalogSyncStatus: 'idle', catalogSyncError: '',
+      admAuthed, admPass: '', admGateError: false, admGateBusy: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
       orders: [], ordersStatus: 'idle', ordersError: '',
       pushStatus: 'idle', pushError: '',
@@ -140,7 +140,7 @@ class App {
   }
   async loadCatalogOverrides() {
     try {
-      const res = await fetch('/api/save-catalog', { headers: { 'X-Admin-Passcode': ADMIN_GATE_PASSCODE }, cache: 'no-store' });
+      const res = await this.adminFetch('/api/save-catalog', { cache: 'no-store' });
       // If the latest saved data can't be read, remember that so a save
       // can't replace it with this page's possibly older copy.
       this._catalogLoadFailed = !res.ok;
@@ -173,9 +173,9 @@ class App {
     this.setState({ catalogSyncStatus: 'saving' });
     const payload = { edits: this.state.edits, removed: this.state.removed, stock: this.state.stock, extra: this.state.extra, site: this.state.site };
     try {
-      const res = await fetch('/api/save-catalog', {
+      const res = await this.adminFetch('/api/save-catalog', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE, 'X-Catalog-Version': String(this._catalogVersion || 0) },
+        headers: { 'Content-Type': 'application/json', 'X-Catalog-Version': String(this._catalogVersion || 0) },
         body: JSON.stringify(payload)
       });
       if (res.status === 409) {
@@ -234,7 +234,7 @@ class App {
       // (sessionStorage cleared, fresh PWA launch), stash the ref and pick
       // this back up right after the passcode gate succeeds.
       let admAuthed = false;
-      try { admAuthed = sessionStorage.getItem('gaya_admin_ok') === '1'; } catch (e) {}
+      admAuthed = !!storedAdminPass();
       return admAuthed
         ? { screen: 'admin', admTab: 'orders', ordOpenRef: parts[2] }
         : { screen: 'adminGate', admPass: '', admGateError: false, pendingOrderRef: parts[2] };
@@ -274,9 +274,9 @@ class App {
     if (!order || !next) return;
     this.setState({ ordActionError: '' });
     try {
-      const res = await this.withTimeout(fetch('/api/update-order-status', {
+      const res = await this.withTimeout(this.adminFetch('/api/update-order-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ref, state: next }),
       }), 15000, 'תם הזמן הקצוב');
       if (!res.ok) throw new Error('שגיאה בעדכון מצב ההזמנה (' + res.status + ')');
@@ -292,7 +292,7 @@ class App {
     if (this.state.ordersStatus === 'loading') return;
     this.setState({ ordersStatus: 'loading', ordersError: '' });
     try {
-      const res = await this.withTimeout(fetch('/api/list-orders', { headers: { 'X-Admin-Passcode': ADMIN_GATE_PASSCODE }, cache: 'no-store' }), 15000, 'תם הזמן הקצוב');
+      const res = await this.withTimeout(this.adminFetch('/api/list-orders', { cache: 'no-store' }), 15000, 'תם הזמן הקצוב');
       if (!res.ok) throw new Error('שגיאה בטעינת ההזמנות (' + res.status + ')');
       const data = await res.json();
       this.setState({ orders: Array.isArray(data.orders) ? data.orders : [], ordersStatus: 'done' });
@@ -319,9 +319,9 @@ class App {
       if (!sub) {
         sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
       }
-      const res = await this.withTimeout(fetch('/api/save-push-subscription', {
+      const res = await this.withTimeout(this.adminFetch('/api/save-push-subscription', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sub),
       }), 15000, 'תם הזמן הקצוב');
       if (!res.ok) throw new Error('שמירת המנוי נכשלה (' + res.status + ')');
@@ -757,9 +757,9 @@ class App {
     const abortT = setTimeout(() => controller.abort(), timeoutMs);
     let res;
     try {
-      res = await fetch(url, {
+      res = await this.adminFetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': contentType, 'X-Admin-Passcode': ADMIN_GATE_PASSCODE },
+        headers: { 'Content-Type': contentType },
         body,
         signal: controller.signal
       });
@@ -898,18 +898,51 @@ class App {
     a.remove();
   }
 
-  tryAdminGate() {
-    if (this.state.admPass === ADMIN_GATE_PASSCODE) {
-      try { sessionStorage.setItem('gaya_admin_ok', '1'); } catch (e) {}
-      if (!this._catalogLoadPromise) this._catalogLoadPromise = this.loadCatalogOverrides();
-      const pendingRef = this.state.pendingOrderRef;
-      this.nav(pendingRef
-        ? { screen: 'admin', admAuthed: true, admPass: '', admTab: 'orders', ordOpenRef: pendingRef, pendingOrderRef: null }
-        : { screen: 'admin', admAuthed: true, admPass: '' });
-      if (pendingRef) this.loadOrders();
-    } else {
-      this.setState({ admGateError: true });
+  // Adds the staff passcode to an admin API call. A 401 means the passcode
+  // is no longer right (it was changed on the server), so the session ends
+  // and the gate asks for the new one.
+  async adminFetch(url, opts) {
+    const o = Object.assign({}, opts);
+    o.headers = Object.assign({}, o.headers, { 'X-Admin-Passcode': storedAdminPass() });
+    const res = await fetch(url, o);
+    if (res.status === 401) this.adminSignOut('קוד הצוות השתנה. הזינו את הקוד החדש.');
+    return res;
+  }
+  adminSignOut(message) {
+    try { sessionStorage.removeItem(ADMIN_PASS_KEY); } catch (e) {}
+    if (!this.state.admAuthed) return;
+    this.nav({ screen: 'adminGate', admAuthed: false, admPass: '', admGateError: message || false, orders: [], ordersStatus: 'idle' });
+  }
+
+  async tryAdminGate() {
+    if (this.state.admGateBusy) return;
+    const pass = this.state.admPass;
+    if (!pass) { this.setState({ admGateError: 'הזינו את קוד הצוות.' }); return; }
+    this.setState({ admGateBusy: true, admGateError: false });
+    let res;
+    try {
+      res = await this.withTimeout(fetch('/api/admin-check', { method: 'POST', headers: { 'X-Admin-Passcode': pass } }), 15000, 'תם הזמן הקצוב');
+    } catch (err) {
+      this.setState({ admGateBusy: false, admGateError: 'אין חיבור לשרת כרגע. נסו שוב.' });
+      return;
     }
+    if (!res.ok) {
+      this.setState({
+        admGateBusy: false,
+        admGateError: res.status === 401 ? 'קוד שגוי, נסו שוב.'
+          : res.status === 429 ? 'יותר מדי ניסיונות שגויים. נסו שוב בעוד רבע שעה.'
+          : 'שגיאה בבדיקת הקוד (' + res.status + '). נסו שוב.'
+      });
+      return;
+    }
+    try { sessionStorage.setItem(ADMIN_PASS_KEY, pass); } catch (e) {}
+    if (!this._catalogLoadPromise) this._catalogLoadPromise = this.loadCatalogOverrides();
+    const pendingRef = this.state.pendingOrderRef;
+    this.state.admGateBusy = false;
+    this.nav(pendingRef
+      ? { screen: 'admin', admAuthed: true, admPass: '', admTab: 'orders', ordOpenRef: pendingRef, pendingOrderRef: null }
+      : { screen: 'admin', admAuthed: true, admPass: '' });
+    if (pendingRef) this.loadOrders();
   }
 
   // ── render ───────────────────────────────────────────────────────────
@@ -1670,8 +1703,8 @@ class App {
           <label for="adm-pass">קוד צוות</label>
           <input class="input" id="adm-pass" type="password" data-adm-pass="1" value="${esc(s.admPass)}" placeholder="••••••••" autocomplete="off">
         </div>
-        ${s.admGateError ? `<p style="margin: 0; font-size: 13px; color: var(--color-accent-700)">קוד שגוי, נסו שוב.</p>` : ''}
-        <button class="btn btn-primary btn-block" data-act="admGateSubmit">כניסה</button>
+        ${s.admGateError ? `<p role="alert" style="margin: 0; font-size: 13px; color: var(--color-accent-700)">${esc(s.admGateError === true ? 'קוד שגוי, נסו שוב.' : s.admGateError)}</p>` : ''}
+        <button class="btn btn-primary btn-block" data-act="admGateSubmit"${s.admGateBusy ? ' disabled' : ''}>${s.admGateBusy ? 'בודק…' : 'כניסה'}</button>
         <button class="btn btn-ghost" data-act="goHome" style="border: 0">חזרה לחנות</button>
       </div>
     </div>`;

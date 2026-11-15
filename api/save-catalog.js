@@ -1,3 +1,4 @@
+const { requireAdmin } = require('./_auth');
 const { getFile, putFile, GitHubConflictError } = require('./_github');
 
 const MAX_BYTES = 200 * 1024;
@@ -40,11 +41,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const passcode = req.headers['x-admin-passcode'];
-  if (!passcode || passcode !== process.env.ADMIN_GATE_PASSCODE) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   // GET hands the admin panel what's on main right now — newer than the
   // deployed saved-data.js for the minute or so a deploy takes.

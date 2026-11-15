@@ -1,3 +1,4 @@
+const { requireAdmin } = require('./_auth');
 const { addSub } = require('./_push-store');
 
 const MAX_BYTES = 4 * 1024;
@@ -8,11 +9,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const passcode = req.headers['x-admin-passcode'];
-  if (!passcode || passcode !== process.env.ADMIN_GATE_PASSCODE) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   const body = await new Promise((resolve, reject) => {
     const chunks = [];

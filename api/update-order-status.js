@@ -1,6 +1,6 @@
-const { get, put, BlobPreconditionFailedError } = require('@vercel/blob');
+const { requireAdmin } = require('./_auth');
+const { setOrderState } = require('./_orders-store');
 
-const ORDERS_PATH = 'orders.json';
 const VALID_STATES = ['new', 'prep', 'sent'];
 const MAX_BYTES = 2 * 1024;
 
@@ -10,11 +10,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const passcode = req.headers['x-admin-passcode'];
-  if (!passcode || passcode !== process.env.ADMIN_GATE_PASSCODE) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   const body = await new Promise((resolve, reject) => {
     const chunks = [];
@@ -42,31 +38,11 @@ module.exports = async (req, res) => {
     return;
   }
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const result = await get(ORDERS_PATH, { access: 'private', useCache: false });
-    if (!result) { res.status(404).json({ error: 'no orders yet' }); return; }
-    const text = await new Response(result.stream).text();
-    const orders = JSON.parse(text);
-    const order = orders.find((o) => o.ref === data.ref);
-    if (!order) { res.status(404).json({ error: 'order not found' }); return; }
-    order.state = data.state;
-
-    const putOptions = {
-      access: 'private',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: 'application/json',
-      cacheControlMaxAge: 60,
-      ifMatch: result.blob ? result.blob.etag : undefined,
-    };
-    try {
-      await put(ORDERS_PATH, JSON.stringify(orders), putOptions);
-      res.status(200).json({ ok: true });
-      return;
-    } catch (err) {
-      if (err instanceof BlobPreconditionFailedError && attempt < 3) continue;
-      res.status(500).json({ error: 'update failed', detail: String(err && err.message || err) });
-      return;
-    }
+  try {
+    const found = await setOrderState(data.ref, data.state);
+    if (!found) { res.status(404).json({ error: 'order not found' }); return; }
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'update failed', detail: String(err && err.message || err) });
   }
 };

@@ -1,3 +1,4 @@
+const { requireAdmin } = require('./_auth');
 const { readOrders } = require('./_orders-store');
 
 module.exports = async (req, res) => {
@@ -6,14 +7,11 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const passcode = req.headers['x-admin-passcode'];
-  if (!passcode || passcode !== process.env.ADMIN_GATE_PASSCODE) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   try {
     const { orders } = await readOrders();
+    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ orders });
   } catch (err) {
     res.status(500).json({ error: 'list failed', detail: String(err && err.message || err) });

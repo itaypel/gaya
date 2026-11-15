@@ -1,57 +1,25 @@
-const { get, put, BlobPreconditionFailedError } = require('@vercel/blob');
+const { redis } = require('./_redis');
 
-// Push subscriptions live in the same private store as orders.
-const SUBS_PATH = 'push-subscriptions.json';
+// Push subscriptions sit in one hash keyed by endpoint, so adding or removing
+// one is a single write.
+const SUBS = 'push-subs';
 
 async function readSubs() {
-  const result = await get(SUBS_PATH, { access: 'private', useCache: false });
-  if (!result) return { subs: [], etag: null };
-  const text = await new Response(result.stream).text();
-  const subs = JSON.parse(text);
-  return { subs: Array.isArray(subs) ? subs : [], etag: result.blob ? result.blob.etag : null };
-}
-
-async function writeSubs(subs, etag) {
-  const putOptions = {
-    access: 'private',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-    cacheControlMaxAge: 60,
-  };
-  if (etag) putOptions.ifMatch = etag;
-  await put(SUBS_PATH, JSON.stringify(subs), putOptions);
+  const all = await redis().hgetall(SUBS);
+  const subs = Object.values(all || {}).map((v) => {
+    if (v && typeof v === 'object') return v;
+    try { return JSON.parse(v); } catch (e) { return null; }
+  }).filter(Boolean);
+  return { subs };
 }
 
 async function addSub(sub) {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const { subs, etag } = await readSubs();
-    const next = subs.filter((s) => s.endpoint !== sub.endpoint);
-    next.push(sub);
-    try {
-      await writeSubs(next, etag);
-      return;
-    } catch (err) {
-      if (err instanceof BlobPreconditionFailedError && attempt < 3) continue;
-      throw err;
-    }
-  }
+  await redis().hset(SUBS, { [sub.endpoint]: JSON.stringify(sub) });
 }
 
 async function removeSubs(endpoints) {
   if (endpoints.length === 0) return;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const { subs, etag } = await readSubs();
-    const next = subs.filter((s) => !endpoints.includes(s.endpoint));
-    if (next.length === subs.length) return;
-    try {
-      await writeSubs(next, etag);
-      return;
-    } catch (err) {
-      if (err instanceof BlobPreconditionFailedError && attempt < 3) continue;
-      throw err;
-    }
-  }
+  await redis().hdel(SUBS, ...endpoints);
 }
 
 module.exports = { readSubs, addSub, removeSubs };

@@ -1,3 +1,4 @@
+const { requireAdmin } = require('./_auth');
 const crypto = require('crypto');
 const { getFile, putFile, GitHubConflictError } = require('./_github');
 const convertHeic = require('heic-convert');
@@ -13,11 +14,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const passcode = req.headers['x-admin-passcode'];
-  if (!passcode || passcode !== process.env.ADMIN_GATE_PASSCODE) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
+  if (!(await requireAdmin(req, res))) return;
 
   const id = String(req.query.id || '');
   if (!/^[a-z][a-z0-9]{0,15}$/.test(id)) {
