@@ -47,10 +47,20 @@ module.exports = async (req, res) => {
   }
 
   const method = data.method === 'pickup' ? 'pickup' : 'ship';
+  // priceMax is optional: a price-range product sends its low end as price
+  // and its high end as priceMax (final price agreed with the customer later).
+  // When present it must be a finite number >= price; equal ends are stored
+  // as a plain fixed-price item.
   const items = Array.isArray(data.items) ? data.items.filter((it) =>
     it && isNonEmptyString(String(it.id || ''), 40) && isNonEmptyString(String(it.name || ''), 200) &&
-    Number.isFinite(it.qty) && it.qty > 0 && Number.isFinite(it.price) && it.price >= 0
-  ) : [];
+    Number.isFinite(it.qty) && it.qty > 0 && Number.isFinite(it.price) && it.price >= 0 &&
+    (it.priceMax === undefined || it.priceMax === null || (Number.isFinite(it.priceMax) && it.priceMax >= it.price))
+  ).map((it) => {
+    const out = Object.assign({}, it);
+    if (Number.isFinite(it.priceMax) && it.priceMax > it.price) out.priceMax = it.priceMax;
+    else delete out.priceMax;
+    return out;
+  }) : [];
 
   const valid = isNonEmptyString(data.name, 100) &&
     isNonEmptyString(data.phone, 40) &&
@@ -63,7 +73,15 @@ module.exports = async (req, res) => {
 
   const orderId = 'GY' + Date.now().toString(36).toUpperCase();
   const fmt = (n) => Number(n || 0).toLocaleString('he-IL') + ' ₪';
-  const lines = items.map((it) => `  ${it.name} × ${it.qty} — ${fmt(it.price * it.qty)}`).join('\n');
+  // LRMs around the dash keep "800–1,200" in reading order inside RTL text.
+  const fmtRange = (lo, hi) => hi > lo
+    ? `${Number(lo).toLocaleString('he-IL')}\u200E–\u200E${Number(hi).toLocaleString('he-IL')} ₪`
+    : fmt(lo);
+  // How much higher the order can come out once range items are priced.
+  const rangeExtra = items.reduce((t, it) => t + (it.priceMax !== undefined ? (it.priceMax - it.price) * it.qty : 0), 0);
+  const lines = items.map((it) => it.priceMax !== undefined
+    ? `  ${it.name} × ${it.qty} — ${fmtRange(it.price * it.qty, it.priceMax * it.qty)} (טווח מחיר, ייקבע בתיאום)`
+    : `  ${it.name} × ${it.qty} — ${fmt(it.price * it.qty)}`).join('\n');
   const emailStr = isNonEmptyString(data.email, 200) ? noHeaderBreak(data.email) : '';
   const safeName = noHeaderBreak(data.name);
   const text = [
@@ -78,9 +96,10 @@ module.exports = async (req, res) => {
     'פריטים:',
     lines,
     '',
-    `סה"כ ביניים: ${fmt(data.subtotal)}`,
+    rangeExtra > 0 ? `סה"כ ביניים משוער: ${fmtRange(Number(data.subtotal) || 0, (Number(data.subtotal) || 0) + rangeExtra)}` : `סה"כ ביניים: ${fmt(data.subtotal)}`,
     `משלוח: ${fmt(data.shipping)}`,
-    `סה"כ לתשלום: ${fmt(data.total)}`,
+    rangeExtra > 0 ? `סה"כ משוער לתשלום: ${fmtRange(Number(data.total) || 0, (Number(data.total) || 0) + rangeExtra)}` : `סה"כ לתשלום: ${fmt(data.total)}`,
+    rangeExtra > 0 ? 'המחיר הסופי למוצרים בטווח מחיר ייקבע בתיאום עם הלקוח.' : null,
     '',
     `אמצעי תשלום מועדף: ${data.pay === 'apple' ? 'Apple Pay' : data.pay === 'google' ? 'Google Pay' : 'כרטיס אשראי'}`,
     isNonEmptyString(data.note, 1000) ? `הערה: ${data.note.trim()}` : null,
@@ -125,7 +144,7 @@ module.exports = async (req, res) => {
       const { subs } = await readSubs();
       const payload = JSON.stringify({
         title: 'הזמנה חדשה ב-GAYA',
-        body: `${safeName} · ${fmt(storedOrder.total)}`,
+        body: `${safeName} · ${fmtRange(storedOrder.total, storedOrder.total + rangeExtra)}`,
         url: '/admin/orders/' + orderId,
       });
       const dead = [];
