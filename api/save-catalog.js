@@ -35,6 +35,28 @@ function sanitizeSite(input) {
   return out;
 }
 
+// Pot colors for boutique plants: [{id, label, hex}]. ids end up in cart and
+// order keys, so they stay short; bad or duplicate entries are dropped.
+const MAX_POT_COLORS = 20;
+function sanitizePotColors(input) {
+  const out = [];
+  const seen = new Set();
+  if (!Array.isArray(input)) return out;
+  for (const c of input) {
+    if (out.length >= MAX_POT_COLORS) break;
+    if (!c || typeof c !== 'object') continue;
+    const id = typeof c.id === 'string' ? c.id : '';
+    const label = typeof c.label === 'string' ? c.label.trim() : '';
+    const hex = typeof c.hex === 'string' ? c.hex : '';
+    if (!/^[a-z0-9]{1,16}$/.test(id) || seen.has(id)) continue;
+    if (!label || label.length > 40) continue;
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) continue;
+    seen.add(id);
+    out.push({ id, label, hex });
+  }
+  return out;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST' && req.method !== 'GET') {
     res.status(405).json({ error: 'method not allowed' });
@@ -104,6 +126,10 @@ module.exports = async (req, res) => {
       res.status(409).json({ error: 'conflict' });
       return;
     }
+    // A client that doesn't send potColors (an older open panel) keeps the
+    // saved list instead of wiping it.
+    if (Array.isArray(data.potColors)) payload.potColors = sanitizePotColors(data.potColors);
+    else if (Array.isArray(current.potColors)) payload.potColors = current.potColors;
     const version = Number(current.version || 0) + 1;
     const content = HEADER + 'const SAVED_DATA = ' + JSON.stringify(Object.assign({ version }, payload), null, 2) + ';\n';
     await putFile(DATA_PATH, content, 'Admin panel: update catalog and site texts (v' + version + ')', file && file.sha);
