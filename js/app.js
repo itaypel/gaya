@@ -75,7 +75,7 @@ class App {
     let admAuthed = false;
     try { admAuthed = sessionStorage.getItem('gaya_admin_ok') === '1'; } catch (e) {}
     this.state = {
-      screen: 'home', cat: CATS[0].id, prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
+      screen: 'home', cat: CATS[0].id, catSize: 'all', prod: 'p1', cart: {}, open: false, navOpen: false, method: 'ship', pay: 'card',
       a11y: false, font: 100, contrast: false, links: false, scrolled: false, fading: false,
       admTab: 'products', site: Object.assign({}, SITE, SAVED_DATA.site),
       ordFilter: 'all', ordOpenRef: null, ordActionError: '', pendingOrderRef: null,
@@ -195,7 +195,7 @@ class App {
   routeFromState(s) {
     switch (s.screen) {
       case 'home': return '/';
-      case 'category': return '/category/' + catInfo(s.cat).id;
+      case 'category': return '/category/' + catInfo(s.cat).id + (catInfo(s.cat).id === 'boutique' && sizeInfo(s.catSize) ? '/' + s.catSize : '');
       case 'product': return '/product/' + encodeURIComponent(s.prod);
       case 'checkout': return '/checkout';
       case 'access': return '/access';
@@ -220,7 +220,7 @@ class App {
   parseRoute(path) {
     const parts = String(path || '').replace(/^#/, '').replace(/^\/+/, '').split('/').filter(Boolean).map((p) => decodeURIComponent(p));
     if (parts.length === 0) return { screen: 'home' };
-    if (parts[0] === 'category') return { screen: 'category', cat: catInfo(parts[1]).id };
+    if (parts[0] === 'category') { const cat = catInfo(parts[1]).id; return { screen: 'category', cat, catSize: cat === 'boutique' && sizeInfo(parts[2]) ? parts[2] : 'all' }; }
     if (parts[0] === 'product' && parts[1]) return { screen: 'product', prod: parts[1], prodImg: 0, prodStand: null };
     if (parts[0] === 'checkout') return { screen: 'checkout' };
     if (parts[0] === 'access') return { screen: 'access' };
@@ -333,7 +333,7 @@ class App {
 
   setSite(k, v) { this.setState((st) => ({ site: Object.assign({}, st.site, { [k]: v }) })); }
   resetSite() { this.setState({ site: Object.assign({}, SITE) }); }
-  blankNf() { return { name: '', price: '', stock: '', cat: CATS[0].id, size: '', light: '', water: '', desc: '' }; }
+  blankNf() { return { name: '', price: '', stock: '', cat: CATS[0].id, sizeCat: '', size: '', light: '', water: '', desc: '' }; }
 
   openEditor(id) {
     const p = this.catalog().find((x) => x.id === id);
@@ -341,7 +341,7 @@ class App {
     this.setState({
       admForm: true, editId: id,
       nf: { name: p.name, price: String(p.price), stock: String(this.stockOf(id)),
-            cat: catOf(p),
+            cat: catOf(p), sizeCat: sizeCatOf(p),
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
       nfImgStatus: 'idle', nfImgError: '', nfNewId: null,
       nfImages: p.images.map((i) => Object.assign({}, i)), nfImgSel: 0, nfImgProgress: null,
@@ -354,7 +354,7 @@ class App {
     if (!editId || !name) return;
     const patch = {
       name, price: Number(nf.price) || 0,
-      cat: catField(nf.cat),
+      cat: catField(nf.cat), sizeCat: sizeField(nf.cat, nf.sizeCat),
       size: (nf.size || '').trim(), light: (nf.light || '').trim(),
       water: (nf.water || '').trim(), desc: (nf.desc || '').trim(),
       images: this.state.nfImages, stands: this.state.nfStands
@@ -438,7 +438,7 @@ class App {
     if (!name) return;
     const id = this.state.nfNewId || ('x' + (this.state.extra.length + 1));
     const item = {
-      id, images: this.state.nfImages, stands: this.state.nfStands, cat: catField(nf.cat),
+      id, images: this.state.nfImages, stands: this.state.nfStands, cat: catField(nf.cat), sizeCat: sizeField(nf.cat, nf.sizeCat),
       name, price: Number(nf.price) || 0,
       size: (nf.size || '').trim() || 'בינונית',
       light: (nf.light || '').trim() || 'אור עקיף בהיר',
@@ -459,7 +459,7 @@ class App {
     if (cat === this.state.cat) return;
     this.setState({ fading: true });
     clearTimeout(this._fadeT);
-    this._fadeT = setTimeout(() => this.setState({ cat, fading: false }), 220);
+    this._fadeT = setTimeout(() => this.setState({ cat, catSize: 'all', fading: false }), 220);
   }
   fmt(n) { return n.toLocaleString('he-IL') + ' ' + SHEKEL; }
   setQty(key, delta) {
@@ -572,7 +572,7 @@ class App {
     const s = this.state;
     switch (act) {
       case 'goHome': this.nav({ screen: 'home', navOpen: false }); break;
-      case 'goCat': this.nav({ screen: 'category', cat: catInfo(id).id, navOpen: false }); break;
+      case 'goCat': this.nav({ screen: 'category', cat: catInfo(id).id, catSize: sizeInfo(el.dataset.size) ? el.dataset.size : 'all', navOpen: false }); break;
       case 'goCare': this.nav({ screen: 'care', navOpen: false }); break;
       case 'openCare': this.nav({ screen: 'careItem', careId: id, prodImg: 0 }); break;
       case 'goCheckout': this.nav({ screen: 'checkout', open: false }); break;
@@ -583,10 +583,13 @@ class App {
       case 'goShipping': this.nav({ screen: 'shipping' }); break;
       case 'goCatFromProduct': {
         const prod = this.catalog().find((x) => x.id === s.prod) || CATALOG[0];
-        this.nav({ screen: 'category', cat: catOf(prod) });
+        this.nav({ screen: 'category', cat: catOf(prod), catSize: 'all' });
         break;
       }
       case 'setCat': this.swapCat(catInfo(id).id); break;
+      // The size sub-filter stays on the page; on /category it also swaps the
+      // address in place, so a filtered view can be linked to.
+      case 'setCatSize': this.setState({ catSize: sizeInfo(id) ? id : 'all' }); if (s.screen === 'category') this.syncUrl(true); break;
       case 'toggleCart': this.setState((st) => ({ open: !st.open })); break;
       case 'closeCart': this.setState({ open: false }); break;
       case 'toggleNav': this.setState((st) => ({ navOpen: !st.navOpen })); break;
@@ -1246,7 +1249,8 @@ class App {
     const site = s.site;
     const cat = catInfo(s.cat).id;
     const all = this.catalog();
-    const catItems = all.filter((p) => catOf(p) === cat);
+    const sized = this.sizeFilter(cat, all.filter((p) => catOf(p) === cat));
+    const catItems = sized.items;
     return `
     <div data-screen-label="בית">
       <section style="position: relative; min-height: var(--hero-min-h, 92vh); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--hero-gap, clamp(30px, 5vh, 56px)); padding: var(--hero-pad, clamp(56px, 10vh, 120px) var(--pg) clamp(48px, 8vh, 92px)); text-align: center; background: var(--color-bg); border-bottom: 1px solid var(--color-divider)">
@@ -1291,12 +1295,14 @@ class App {
           ${CATS.map((c) => `<button class="btn ${c.id === cat ? 'btn-primary' : 'btn-secondary'}" data-act="setCat" data-id="${c.id}">${c.label}</button>`).join('')}
           <span style="margin-inline-start: auto; align-self: center; font-size: 13px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${catItems.length} ${catItems.length === 1 ? 'פריט' : 'פריטים'}</span>
         </div>
+        ${sized.bar}
       </section>
 
       <section style="padding: 38px var(--pg) 80px">
         <div style="display: grid; grid-template-columns: var(--cards, repeat(auto-fill, minmax(min(230px, 100%), 1fr))); gap: var(--cards-gap, 48px 30px); transition: opacity 0.22s ease; opacity: ${s.fading ? 0 : 1}">
           ${catItems.map((p) => this.productCard(p)).join('')}
         </div>
+        ${sized.empty}
       </section>
     </div>`;
   }
@@ -1376,7 +1382,8 @@ class App {
     const s = this.state;
     const cat = catInfo(s.cat).id;
     const all = this.catalog();
-    const catItems = all.filter((p) => catOf(p) === cat);
+    const sized = this.sizeFilter(cat, all.filter((p) => catOf(p) === cat));
+    const catItems = sized.items;
     return `
     <div data-screen-label="קטגוריה">
       <section style="padding: clamp(36px, 5vw, 56px) var(--pg) 30px">
@@ -1386,13 +1393,34 @@ class App {
           ${CATS.map((c) => `<button class="btn ${c.id === cat ? 'btn-primary' : 'btn-secondary'}" data-act="goCat" data-id="${c.id}">${c.label}</button>`).join('')}
           <span style="margin-inline-start: auto; align-self: center; font-size: 13px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums">${catItems.length} ${catItems.length === 1 ? 'פריט' : 'פריטים'}</span>
         </div>
+        ${sized.bar}
       </section>
       <section style="padding: 40px var(--pg) 84px">
         <div style="display: grid; grid-template-columns: var(--cards, repeat(auto-fill, minmax(min(230px, 100%), 1fr))); gap: var(--cards-gap, 48px 30px)">
           ${catItems.map((p) => this.productCard(p)).join('')}
         </div>
+        ${sized.empty}
       </section>
     </div>`;
+  }
+  // The boutique size sub-filter, shared by the home catalog and /category:
+  // the open category's products narrowed to the chosen size, plus the chips
+  // that pick it. The chips show only once at least one boutique product has
+  // a size, so an unclassified catalog never offers a filter that empties the
+  // grid. Unclassified products are listed under "all" only.
+  sizeFilter(cat, items) {
+    if (cat !== 'boutique' || !items.some((p) => sizeCatOf(p))) return { items, bar: '', empty: '' };
+    const cur = sizeInfo(this.state.catSize) ? this.state.catSize : 'all';
+    const shown = cur === 'all' ? items : items.filter((p) => sizeCatOf(p) === cur);
+    const opts = [{ id: 'all', label: 'הכל' }].concat(BOUTIQUE_SIZES);
+    return {
+      items: shown,
+      bar: `
+        <div class="size-chips" role="group" aria-label="סינון לפי גודל">
+          ${opts.map((o) => `<button class="btn btn-sm ${o.id === cur ? 'btn-primary' : 'btn-secondary'}" data-act="setCatSize" data-id="${o.id}" aria-pressed="${o.id === cur}">${o.label}</button>`).join('')}
+        </div>`,
+      empty: shown.length ? '' : `<p style="margin: 0; font-size: 15px; color: var(--color-neutral-600)">אין כרגע עציצים בגודל הזה.</p>`
+    };
   }
 
   // Photo + arrows + thumbnails, shared by the product page and the care
@@ -1432,11 +1460,13 @@ class App {
     const stand = this.selectedStand(prod);
     const unitPrice = prod.price + this.standPrice(stand);
     const desc = prod.desc;
+    const sizeCls = sizeInfo(sizeCatOf(prod));
     return `
     <div data-screen-label="מוצר">
       <nav style="padding: 22px var(--pg); font-size: 13px; color: var(--color-neutral-600); display: flex; gap: 8px; align-items: center">
         <a href="#" data-act="goHome">בית</a><span style="opacity: 0.5">${ICON.crumb}</span>
         <a href="#" data-act="goCatFromProduct">${catInfo(prod.cat).label}</a><span style="opacity: 0.5">${ICON.crumb}</span>
+        ${sizeCls ? `<a href="#" data-act="goCat" data-id="boutique" data-size="${sizeCls.id}">${sizeCls.short}</a><span style="opacity: 0.5">${ICON.crumb}</span>` : ''}
         <span>${esc(prod.name)}</span>
       </nav>
       <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 56px; padding: 12px var(--pg) 80px; align-items: start; max-width: 1180px; margin-inline: auto">
@@ -1466,6 +1496,7 @@ class App {
           <hr class="hr">
           <table class="table">
             <tbody>
+              ${sizeCls ? `<tr><td style="color: var(--color-neutral-600); width: 34%">קטגוריית גודל</td><td>${sizeCls.one}</td></tr>` : ''}
               <tr><td style="color: var(--color-neutral-600); width: 34%">גודל</td><td>${esc(prod.size)}</td></tr>
               <tr><td style="color: var(--color-neutral-600)">אור</td><td>${esc(prod.light)}</td></tr>
               <tr><td style="color: var(--color-neutral-600)">השקיה</td><td>${esc(prod.water)}</td></tr>
@@ -1791,7 +1822,7 @@ class App {
                 ${p.isNew ? `<span class="tag tag-accent" style="margin-inline-start: 8px">חדש</span>` : ''}
               </span>
             </span></td>
-            <td>${catInfo(p.cat).one}</td>
+            <td>${catInfo(p.cat).one}${catOf(p) === 'boutique' ? `<span style="display: block; font-size: 12px; color: var(--color-neutral-600)">${sizeCatOf(p) ? sizeInfo(sizeCatOf(p)).one : 'גודל לא מסווג'}</span>` : ''}</td>
             <td style="font-variant-numeric: tabular-nums">${this.fmt(p.price)}</td>
             <td><span class="seg" style="display: inline-flex">
               <button class="seg-opt" data-act="admDec" data-id="${p.id}" aria-label="הפחתת יחידה">${ICON.minus}</button>
@@ -1960,6 +1991,12 @@ class App {
               ${CATS.map((c) => `<button class="seg-opt" data-act="nfSetCat" data-id="${c.id}" aria-pressed="${nf.cat === c.id}" style="background: ${nf.cat === c.id ? 'var(--color-accent-100)' : 'transparent'}; color: ${nf.cat === c.id ? 'var(--color-accent-800)' : 'var(--color-text)'}">${c.one}</button>`).join('')}
             </div>
           </div>
+          ${nf.cat === 'boutique' ? `<div class="field"><label for="a-sizecat">גודל</label>
+            <select class="input" id="a-sizecat" data-nf-field="sizeCat">
+              <option value=""${sizeInfo(nf.sizeCat) ? '' : ' selected'}>לא מסווג</option>
+              ${BOUTIQUE_SIZES.map((x) => `<option value="${x.id}"${nf.sizeCat === x.id ? ' selected' : ''}>${x.one}</option>`).join('')}
+            </select>
+          </div>` : ''}
           <div class="field"><label for="a-size">גודל</label><input class="input" id="a-size" data-nf-field="size" value="${esc(nf.size)}" placeholder="בינונית"></div>
           <div class="field"><label for="a-light">אור</label><input class="input" id="a-light" data-nf-field="light" value="${esc(nf.light)}" placeholder="אור עקיף בהיר"></div>
           <div class="field"><label for="a-water">השקיה</label><input class="input" id="a-water" data-nf-field="water" value="${esc(nf.water)}" placeholder="טבילה אחת לשבוע"></div>

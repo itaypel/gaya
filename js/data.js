@@ -41,6 +41,20 @@ function catOf(p) { return catInfo(p && p.cat).id; }
 // What to store on a product record for a category id (kokedama stays unset).
 function catField(id) { const c = catInfo(id).id; return c === 'kokedama' ? undefined : c; }
 
+// Boutique pots are split by size into these sub-categories, in the order the
+// shop's sub-filter lists them. A boutique product's sizeCat holds one of the
+// ids; a product without one is unclassified and shows only under "all".
+// label is the filter chip, short the breadcrumb, one names a single product.
+const BOUTIQUE_SIZES = [
+  { id: 'medium', label: 'בינוניים · עד מטר', short: 'בינוניים', one: 'בינוני · עד מטר' },
+  { id: 'large', label: 'גדולים · מעל מטר', short: 'גדולים', one: 'גדול · מעל מטר' }
+];
+function sizeInfo(id) { return BOUTIQUE_SIZES.find((x) => x.id === id) || null; }
+// A product's size sub-category id, or '' when it has none (or isn't boutique).
+function sizeCatOf(p) { return p && catOf(p) === 'boutique' && sizeInfo(p.sizeCat) ? p.sizeCat : ''; }
+// What to store on a product record for a size id (only boutique keeps one).
+function sizeField(cat, id) { return catInfo(cat).id === 'boutique' && sizeInfo(id) ? id : undefined; }
+
 const STOCK = { b1: 1, b2: 1, b3: 1, b4: 1, b5: 1, p1: 3, p2: 6, p3: 4, p4: 2, p5: 5, p6: 3, p7: 0, p8: 7, p9: 3, p10: 2, p11: 8, p12: 5, p13: 9, p14: 4, p15: 0, p16: 1, h1: 6, h2: 3, h3: 8 };
 
 // Product photos ship with the site, in assets/images/products/. Uploads from
