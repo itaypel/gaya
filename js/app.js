@@ -335,14 +335,14 @@ class App {
 
   setSite(k, v) { this.setState((st) => ({ site: Object.assign({}, st.site, { [k]: v }) })); }
   resetSite() { this.setState({ site: Object.assign({}, SITE) }); }
-  blankNf() { return { name: '', price: '', stock: '', cat: CATS[0].id, sizeCat: '', size: '', light: '', water: '', desc: '' }; }
+  blankNf() { return { name: '', price: '', priceMax: '', stock: '', cat: CATS[0].id, sizeCat: '', size: '', light: '', water: '', desc: '' }; }
 
   openEditor(id) {
     const p = this.catalog().find((x) => x.id === id);
     if (!p) return;
     this.setState({
       admForm: true, editId: id,
-      nf: { name: p.name, price: String(p.price), stock: String(this.stockOf(id)),
+      nf: { name: p.name, price: String(p.price), priceMax: this.isRange(p) ? String(p.priceMax) : '', stock: String(this.stockOf(id)),
             cat: catOf(p), sizeCat: sizeCatOf(p),
             size: p.size || '', light: p.light || '', water: p.water || '', desc: p.desc || '' },
       nfImgStatus: 'idle', nfImgError: '', nfNewId: null,
@@ -361,6 +361,11 @@ class App {
       water: (nf.water || '').trim(), desc: (nf.desc || '').trim(),
       images: this.state.nfImages, stands: this.state.nfStands
     };
+    // No range → drop priceMax; null only when the base record carries one
+    // that must be overridden (undefined vanishes from the saved JSON).
+    const priceMax = this.nfPriceMax(nf);
+    const baseHasMax = CATALOG.concat(this.state.extra).some((x) => x.id === editId && x.priceMax != null);
+    patch.priceMax = priceMax !== undefined ? priceMax : (baseHasMax ? null : undefined);
     // A product that never had a photo (img: '' in its base catalog entry)
     // needs its edits.img set explicitly here, or the upload succeeds but
     // the catalog record never starts pointing at it — the site keeps
@@ -448,6 +453,8 @@ class App {
       desc: (nf.desc || '').trim() || 'תיאור להשלמה.',
       isNew: true
     };
+    const priceMax = this.nfPriceMax(nf);
+    if (priceMax !== undefined) item.priceMax = priceMax;
     this.setState((st) => ({
       extra: st.extra.concat([item]),
       stock: Object.assign({}, st.stock, { [id]: Number(nf.stock) || 0 }),
@@ -464,6 +471,36 @@ class App {
     this._fadeT = setTimeout(() => this.setState({ cat, catSize: 'all', fading: false }), 220);
   }
   fmt(n) { return n.toLocaleString('he-IL') + ' ' + SHEKEL; }
+
+  // ── price ranges ─────────────────────────────────────────────────────
+  // A product may quote a range instead of one price: `price` is the low end
+  // and the optional `priceMax` the high end, and the final amount is agreed
+  // with the customer after ordering. A stand adds its price to both ends.
+  isRange(p) { return !!p && Number(p.priceMax) > Number(p.price); }
+  priceMaxOf(p) { return this.isRange(p) ? Number(p.priceMax) : p.price; }
+  // HTML: the numbers sit in an LTR isolate so "800–1,200" reads low→high
+  // inside the RTL page. Equal ends fall back to a plain fmt().
+  fmtRange(lo, hi) {
+    return hi > lo ? `<bdi dir="ltr">${lo.toLocaleString('he-IL')}–${hi.toLocaleString('he-IL')}</bdi> ${SHEKEL}` : this.fmt(lo);
+  }
+  // Plain text (WhatsApp): LRMs around the dash keep the same order.
+  rangeText(lo, hi) {
+    return hi > lo ? `${lo.toLocaleString('he-IL')}\u200E–\u200E${hi.toLocaleString('he-IL')} ${SHEKEL}` : this.fmt(lo);
+  }
+  priceText(p, add = 0) { return this.fmtRange(p.price + add, this.priceMaxOf(p) + add); }
+  // A cart line's high end — equal to l.total unless the product is a range.
+  lineMaxTotal(l) { return (this.priceMaxOf(l.p) + this.standPrice(l.stand)) * l.qty; }
+  lineLabel(l) { return this.fmtRange(l.total, this.lineMaxTotal(l)); }
+  subtotalMax() { return this.cartLines().reduce((sum, l) => sum + this.lineMaxTotal(l), 0); }
+  // The admin form's "מחיר עד" — only a value above the base price makes a range.
+  nfPriceMax(nf) {
+    const lo = Number(nf.price) || 0, hi = Number(nf.priceMax);
+    return String(nf.priceMax || '').trim() !== '' && Number.isFinite(hi) && hi > lo ? hi : undefined;
+  }
+  // Stored orders: items carry priceMax only when they were range lines;
+  // older orders have none, so their extra is 0.
+  ordItemMax(it) { return Number.isFinite(it.priceMax) && it.priceMax > it.price ? it.priceMax : it.price; }
+  ordRangeExtra(o) { return o.items.reduce((t, it) => t + (this.ordItemMax(it) - it.price) * it.qty, 0); }
   setQty(key, delta) {
     this.setState((s) => {
       const cart = Object.assign({}, s.cart);
@@ -1049,6 +1086,11 @@ class App {
   }
   priceLabel(p) {
     const pf = this.priceFrom(p);
+    // A range already says "it varies", so span every stand instead of "החל מ־".
+    if (this.isRange(p)) {
+      const adds = this.standsFor(p).map((x) => this.standPrice(x));
+      return this.fmtRange(pf.amount, this.priceMaxOf(p) + (adds.length ? Math.max(...adds) : 0));
+    }
     return (pf.from ? 'החל מ־' : '') + this.fmt(pf.amount);
   }
   productCard(p, { featured = false } = {}) {
@@ -1158,7 +1200,7 @@ class App {
           <span style="display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border: 1px solid var(--color-accent-700); border-radius: 999px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-accent-900)">${this.cartCount()}</span>
         </span>
         <span style="display: flex; align-items: center; gap: 10px">
-          <span style="font-family: var(--font-heading); font-size: 19px; font-variant-numeric: tabular-nums">${this.fmt(this.subtotal())}</span>
+          <span style="font-family: var(--font-heading); font-size: 19px; font-variant-numeric: tabular-nums">${this.fmtRange(this.subtotal(), this.subtotalMax())}</span>
           ${ICON.chevronBack}
         </span>
       </button>
@@ -1224,7 +1266,13 @@ class App {
     const subtotal = this.subtotal();
     const freeShip = subtotal >= 600;
     const shipping = pickup || freeShip ? 0 : 39;
-    const items = this.cartLines().map((l) => ({ id: l.key, name: this.lineName(l), qty: l.qty, price: l.unit }));
+    // Range lines send their low end as price plus priceMax; the server
+    // derives the range totals from these.
+    const items = this.cartLines().map((l) => {
+      const it = { id: l.key, name: this.lineName(l), qty: l.qty, price: l.unit };
+      if (this.isRange(l.p)) it.priceMax = this.lineMaxTotal(l) / l.qty;
+      return it;
+    });
 
     this.setState({ orderSubmitting: true, orderError: '' });
     try {
@@ -1266,6 +1314,8 @@ class App {
     const freeShip = subtotal >= 600;
     const shipping = subtotal === 0 || pickup || freeShip ? 0 : 39;
     const lines = this.cartLines();
+    const subtotalMax = this.subtotalMax();
+    const ranged = subtotalMax > subtotal;
     return `
     <div data-act="closeCart" aria-hidden="true" style="position: fixed; inset: 0; z-index: 58; background: rgba(24,30,24,0.34); transition: opacity 0.3s ease; display: var(--cart-scrim, none); opacity: ${s.open ? 1 : 0}; pointer-events: ${s.open ? 'auto' : 'none'}"></div>
     <aside data-cart="1" style="position: var(--cart-pos, sticky); top: 0; height: 100vh; flex: 0 0 auto; overflow: hidden; border-inline-end: 1px solid var(--color-divider); background: var(--color-neutral-100); transition: width 0.34s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${s.open ? '0s' : '0.34s'}; width: ${s.open ? 'var(--cart-w)' : '0px'}; visibility: ${s.open ? 'visible' : 'hidden'}">
@@ -1282,7 +1332,7 @@ class App {
             <div style="display: flex; flex-direction: column; gap: 7px">
               <div style="display: flex; justify-content: space-between; gap: 10px; align-items: baseline">
                 <span style="font-family: var(--font-heading); font-size: 16px">${esc(l.name)}</span>
-                <span style="font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--color-neutral-700)">${this.fmt(l.total)}</span>
+                <span style="font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--color-neutral-700)">${this.lineLabel(l)}</span>
               </div>
               ${l.stand ? `<span style="font-size: 13px; color: var(--color-neutral-600)">סטנד ${esc(l.stand.label)}</span>` : ''}
               ${l.color ? `<span class="cart-color"><span class="color-dot" aria-hidden="true" style="background: ${this.potHex(l.color)}"></span>כד ${esc(l.color.label)}</span>` : ''}
@@ -1300,9 +1350,10 @@ class App {
         <div style="border-top: 1px solid var(--color-divider); padding: 22px 26px 26px; display: flex; flex-direction: column; gap: 12px">
           <div style="display: flex; justify-content: space-between; font-size: 14px; color: var(--color-neutral-700)"><span>משלוח</span><span style="font-variant-numeric: tabular-nums">${subtotal === 0 ? '—' : (pickup ? 'איסוף' : (freeShip ? 'חינם' : this.fmt(39)))}</span></div>
           <div style="display: flex; justify-content: space-between; align-items: baseline">
-            <span style="font-size: 15px">סה״כ</span>
-            <span style="font-family: var(--font-heading); font-size: 26px; font-variant-numeric: tabular-nums">${this.fmt(subtotal + shipping)}</span>
+            <span style="font-size: 15px">${ranged ? 'סה״כ משוער' : 'סה״כ'}</span>
+            <span style="font-family: var(--font-heading); font-size: 26px; font-variant-numeric: tabular-nums; white-space: nowrap">${this.fmtRange(subtotal + shipping, subtotalMax + shipping)}</span>
           </div>
+          ${ranged ? `<p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-accent-700)">המחיר הסופי למוצרים בטווח מחיר ייקבע בתיאום איתכם.</p>` : ''}
           <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">${subtotal === 0 ? 'משלוח חינם בהזמנה מעל 600 ₪.' : (pickup ? 'איסוף מהסטודיו ברחובות, בלי עלות משלוח.' : (freeShip ? 'המשלוח כלול בהזמנה.' : 'עוד ' + this.fmt(600 - subtotal) + ' למשלוח חינם.'))}</p>
           <button class="btn btn-primary btn-block" data-act="goCheckout" style="min-height: 46px">המשך להזמנה</button>
         </div>
@@ -1528,6 +1579,7 @@ class App {
     const unitPrice = prod.price + this.standPrice(stand);
     const colors = this.colorsFor(prod);
     const color = this.selectedColor(prod);
+    const unitMax = this.priceMaxOf(prod) + this.standPrice(stand);
     const desc = prod.desc;
     const sizeCls = sizeInfo(sizeCatOf(prod));
     return `
@@ -1558,9 +1610,10 @@ class App {
           <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.3em; color: var(--color-accent-700)">${catInfo(prod.cat).kicker}</span>
           <h1 style="font-size: clamp(30px, 3.2vw, 44px); font-weight: 400; line-height: 1.14">${esc(prod.name)}</h1>
           <span style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
-            <span style="font-size: 24px; font-family: var(--font-heading); font-variant-numeric: tabular-nums">${this.fmt(unitPrice)}</span>
+            <span style="font-size: 24px; font-family: var(--font-heading); font-variant-numeric: tabular-nums">${this.fmtRange(unitPrice, unitMax)}</span>
             <span class="tag ${stockTag}">${stockLabel}</span>
           </span>
+          ${unitMax > unitPrice ? `<p style="margin: -12px 0 0; font-size: 13px; line-height: 1.7; color: var(--color-neutral-600)">המחיר הסופי ייקבע בתיאום איתכם לאחר ההזמנה.</p>` : ''}
           <p style="margin: 0; font-size: 16px; line-height: 1.9; text-align: justify; color: var(--color-neutral-800)">${esc(desc)}</p>
           <hr class="hr">
           <table class="table">
@@ -1614,11 +1667,16 @@ class App {
   // ── CHECKOUT ─────────────────────────────────────────────────────────
   renderCheckout() {
     const subtotal = this.subtotal();
-    const lines = this.cartLines().map((l) => ({ name: this.lineName(l), qty: l.qty, lineLabel: this.fmt(l.total) }));
+    const subtotalMax = this.subtotalMax();
+    const ranged = subtotalMax > subtotal;
+    const lines = this.cartLines().map((l) => ({ name: this.lineName(l), qty: l.qty, lineLabel: this.lineLabel(l),
+      waRange: this.lineMaxTotal(l) > l.total ? this.rangeText(l.total, this.lineMaxTotal(l)) : '' }));
     // Checkout doesn't collect real payment yet (no סליקה set up) — routing
     // straight to WhatsApp instead of the old order form avoids customers
     // thinking they've completed a real purchase.
-    const waText = ['שלום! אשמח להזמין מ-GAYA:', '', ...lines.map((l) => `${l.name} × ${l.qty}`), '', `סה"כ: ${this.fmt(subtotal)}`, '', '(פרטי משלוח/איסוף ותשלום נתאם כאן)'].join('\n');
+    const waText = ['שלום! אשמח להזמין מ-GAYA:', '', ...lines.map((l) => `${l.name} × ${l.qty}${l.waRange ? ` (טווח מחיר: ${l.waRange})` : ''}`), '',
+      ranged ? `סה"כ משוער: ${this.rangeText(subtotal, subtotalMax)}` : `סה"כ: ${this.fmt(subtotal)}`,
+      ...(ranged ? ['(המחיר הסופי למוצרים בטווח מחיר ייקבע בתיאום איתכם)'] : []), '', '(פרטי משלוח/איסוף ותשלום נתאם כאן)'].join('\n');
     const waHref = 'https://wa.me/972507673034?text=' + encodeURIComponent(waText);
     return `
     <div data-screen-label="סיום ההזמנה">
@@ -1644,9 +1702,10 @@ class App {
           </div>`).join('')}
           <hr class="hr" style="margin: 0">
           <div style="display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px">
-            <span style="font-size: 16px">ביניים</span>
-            <span style="font-family: var(--font-heading); font-size: 28px; font-variant-numeric: tabular-nums">${this.fmt(subtotal)}</span>
+            <span style="font-size: 16px">${ranged ? 'ביניים משוער' : 'ביניים'}</span>
+            <span style="font-family: var(--font-heading); font-size: 28px; font-variant-numeric: tabular-nums; white-space: nowrap">${this.fmtRange(subtotal, subtotalMax)}</span>
           </div>
+          ${ranged ? `<p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-accent-700)">המחיר הסופי למוצרים בטווח מחיר ייקבע בתיאום איתכם.</p>` : ''}
           <p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-neutral-600)">משלוח/איסוף נסגר בוואטסאפ. כל כריכה נבדקת ביד לפני האריזה.</p>
         </aside>
       </section>
@@ -1897,7 +1956,7 @@ class App {
               </span>
             </span></td>
             <td>${catInfo(p.cat).one}${catOf(p) === 'boutique' ? `<span style="display: block; font-size: 12px; color: var(--color-neutral-600)">${sizeCatOf(p) ? sizeInfo(sizeCatOf(p)).one : 'גודל לא מסווג'}</span>` : ''}</td>
-            <td style="font-variant-numeric: tabular-nums">${this.fmt(p.price)}</td>
+            <td style="font-variant-numeric: tabular-nums; white-space: nowrap">${this.priceText(p)}</td>
             <td><span class="seg" style="display: inline-flex">
               <button class="seg-opt" data-act="admDec" data-id="${p.id}" aria-label="הפחתת יחידה">${ICON.minus}</button>
               <span class="seg-opt" style="min-width: 40px; justify-content: center; font-variant-numeric: tabular-nums">${q}</span>
@@ -1924,7 +1983,8 @@ class App {
       const st = this.ordStateOf(o.ref);
       const meta = ORD_STATE[st];
       const qty = o.items.reduce((t, it) => t + it.qty, 0);
-      return { o, state: st, meta, qty, total: this.ordTotalOf(o) };
+      const total = this.ordTotalOf(o);
+      return { o, state: st, meta, qty, total, totalMax: total + this.ordRangeExtra(o) };
     });
     const rows = shaped.filter((r) => s.ordFilter === 'all' || r.state === s.ordFilter);
     if (s.ordersStatus === 'loading' || s.ordersStatus === 'idle') {
@@ -1942,7 +2002,7 @@ class App {
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">סה״כ הזמנות</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${s.orders.length}</span></div>
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">ממתינות לטיפול</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums; color: var(--color-accent-700)">${shaped.filter((r) => r.state !== 'sent').length}</span></div>
         <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">נשלחו</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${shaped.filter((r) => r.state === 'sent').length}</span></div>
-        <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">מחזור</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${this.fmt(shaped.reduce((t, r) => t + r.total, 0))}</span></div>
+        <div class="card" style="padding: 18px; gap: 6px"><span class="card-kicker">מחזור</span><span style="font-family: var(--font-heading); font-size: 30px; font-variant-numeric: tabular-nums">${this.fmtRange(shaped.reduce((t, r) => t + r.total, 0), shaped.reduce((t, r) => t + r.totalMax, 0))}</span></div>
       </div>
       ${s.ordActionError ? `<p style="margin: 14px 0 0; font-size: 13px; color: var(--color-accent-700)">${esc(s.ordActionError)}</p>` : ''}
       <div style="display: flex; gap: 10px; flex-wrap: wrap; padding: 24px 0">
@@ -1966,7 +2026,7 @@ class App {
             <td style="font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">${esc(r.o.date)}</td>
             <td>${esc(r.o.customer)}</td>
             <td style="color: var(--color-neutral-700)">${r.qty}${r.qty === 1 ? ' פריט' : ' פריטים'}</td>
-            <td style="font-variant-numeric: tabular-nums">${this.fmt(r.total)}</td>
+            <td style="font-variant-numeric: tabular-nums; white-space: nowrap">${this.fmtRange(r.total, r.totalMax)}</td>
             <td style="color: var(--color-neutral-700)">${esc(r.o.method)}</td>
             <td><span class="tag ${r.meta.tag}">${r.meta.label}</span></td>
             <td><span style="display: flex; gap: 6px">
@@ -2078,6 +2138,7 @@ class App {
     const uploading = s.nfImgStatus === 'uploading';
     const prog = s.nfImgProgress || { done: 0, total: 0 };
     const standRows = Array.isArray(s.nfStands) ? s.nfStands : [];
+    const maxBad = String(nf.priceMax || '').trim() !== '' && this.nfPriceMax(nf) === undefined;
     return `
     <div data-act="admCloseNew" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="עריכת מוצר" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(440px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -2089,6 +2150,8 @@ class App {
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 18px">
           <div class="field" style="grid-column: 1 / -1"><label for="a-name">שם המוצר</label><input class="input" id="a-name" data-nf-field="name" value="${esc(nf.name)}" placeholder="קוקודמה ..."></div>
           <div class="field"><label for="a-price">מחיר בשקלים</label><input class="input" id="a-price" data-nf-field="price" type="number" value="${esc(nf.price)}" placeholder="250"></div>
+          <div class="field"><label for="a-price-max">מחיר עד (לטווח)</label><input class="input" id="a-price-max" data-nf-field="priceMax" type="number" min="0" value="${esc(nf.priceMax || '')}" placeholder="ריק = מחיר קבוע" aria-describedby="a-price-max-hint">
+            <span id="a-price-max-hint" style="font-size: 12px; line-height: 1.6; color: ${maxBad ? 'var(--color-accent-700)' : 'var(--color-neutral-600)'}">${maxBad ? 'לא גבוה מהמחיר — יישמר כמחיר קבוע.' : 'אופציונלי: ממולא → יוצג טווח, והמחיר הסופי נקבע בתיאום.'}</span></div>
           <div class="field"><label for="a-stock">יחידות במלאי</label><input class="input" id="a-stock" data-nf-field="stock" type="number" value="${esc(nf.stock)}" placeholder="6"></div>
           <div class="field"><label for="a-cat">קטגוריה</label>
             <div class="seg" id="a-cat">
@@ -2182,7 +2245,8 @@ class App {
     const sel = s.orders.find((o) => o.ref === s.ordOpenRef);
     const open = !!sel;
     const state = sel ? ORD_STATE[this.ordStateOf(sel.ref)] : null;
-    const lines = sel ? sel.items.map((it) => ({ name: it.name, qty: it.qty, lineLabel: this.fmt(it.price * it.qty) })) : [];
+    const lines = sel ? sel.items.map((it) => ({ name: it.name, qty: it.qty, lineLabel: this.fmtRange(it.price * it.qty, this.ordItemMax(it) * it.qty) })) : [];
+    const extra = sel ? this.ordRangeExtra(sel) : 0;
     return `
     <div data-act="ordClose" aria-hidden="true" style="position: fixed; inset: 0; background: rgba(24,30,24,0.34); z-index: 64; transition: opacity 0.28s ease; opacity: ${open ? 1 : 0}; pointer-events: ${open ? 'auto' : 'none'}"></div>
     <aside role="dialog" aria-label="פרטי הזמנה" style="position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 66; width: min(420px, 92vw); background: var(--color-neutral-100); border-inline-end: 1px solid var(--color-divider); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1), visibility 0s linear ${open ? '0s' : '0.32s'}; transform: ${open ? 'translateX(0)' : 'translateX(105%)'}; visibility: ${open ? 'visible' : 'hidden'}">
@@ -2210,12 +2274,13 @@ class App {
             <span style="font-variant-numeric: tabular-nums; white-space: nowrap">${l.lineLabel}</span>
           </div>`).join('')}
           ${sel ? `
-          <div style="display: flex; justify-content: space-between; font-size: 14px; color: var(--color-neutral-700); padding-top: 4px"><span>ביניים</span><span style="font-variant-numeric: tabular-nums">${this.fmt(this.ordSubtotalOf(sel))}</span></div>
+          <div style="display: flex; justify-content: space-between; font-size: 14px; color: var(--color-neutral-700); padding-top: 4px"><span>${extra > 0 ? 'ביניים משוער' : 'ביניים'}</span><span style="font-variant-numeric: tabular-nums; white-space: nowrap">${this.fmtRange(this.ordSubtotalOf(sel), this.ordSubtotalOf(sel) + extra)}</span></div>
           <div style="display: flex; justify-content: space-between; font-size: 14px; color: var(--color-neutral-700)"><span>${sel.method}</span><span style="font-variant-numeric: tabular-nums">${this.ordShipOf(sel) === 0 ? 'חינם' : this.fmt(this.ordShipOf(sel))}</span></div>
           <div style="display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px; border-top: 1px solid var(--color-divider)">
-            <span style="font-size: 15px">סה״כ</span>
-            <span style="font-family: var(--font-heading); font-size: 24px; font-variant-numeric: tabular-nums">${this.fmt(this.ordTotalOf(sel))}</span>
-          </div>` : ''}
+            <span style="font-size: 15px">${extra > 0 ? 'סה״כ משוער' : 'סה״כ'}</span>
+            <span style="font-family: var(--font-heading); font-size: 24px; font-variant-numeric: tabular-nums; white-space: nowrap">${this.fmtRange(this.ordTotalOf(sel), this.ordTotalOf(sel) + extra)}</span>
+          </div>
+          ${extra > 0 ? `<p style="margin: 0; font-size: 12px; line-height: 1.7; color: var(--color-accent-700)">ההזמנה כוללת מוצרים בטווח מחיר — המחיר הסופי נקבע בתיאום עם הלקוח.</p>` : ''}` : ''}
         </div>
         ${sel && sel.note ? `
         <div style="display: flex; flex-direction: column; gap: 8px">
