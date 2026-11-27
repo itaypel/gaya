@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 34,
+  "version": 35,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -517,6 +517,24 @@ const SAVED_DATA = {
         }
       ],
       "stands": []
+    },
+    "x3": {
+      "name": "עץ יוקה - כד וינטז' בהיר",
+      "price": 800,
+      "cat": "boutique",
+      "size": "150 - 200 סמ",
+      "light": "אור חזק - מתאים לתנאי חוץ",
+      "water": "מעט מים",
+      "desc": "הוסיפו לבית מראה אלגנטי ומודרני עם עץ יוקה — צמח בעל גבעולים זקופים ועלים ארוכים ומחודדים, שמעניק לחלל נוכחות טבעית ומרשימה. הוא מתאים לסלון, לכניסה לבית או למשרד, ומשתלב היטב במגוון סגנונות עיצוב.\n\nטיפול בקצרה: היוקה מעדיפה מקום מואר, ואפשר גם שמש ישירה בהדרגה. השקו לאחר שהאדמה מתייבשת, ודאגו לעציץ עם ניקוז טוב. חשוב להימנע מהשקיית יתר",
+      "images": [
+        {
+          "url": "/assets/images/products/x3-wV1I1NhEcz1C.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
+        }
+      ],
+      "stands": [],
+      "priceMax": 1200
     }
   },
   "removed": {
