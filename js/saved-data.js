@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 36,
+  "version": 37,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -553,6 +553,24 @@ const SAVED_DATA = {
       ],
       "stands": [],
       "priceMax": 1200
+    },
+    "x5": {
+      "name": "רוסטרטה - קערה אפורה וינטז'",
+      "price": 600,
+      "cat": "boutique",
+      "size": "50 - 100 סמ",
+      "light": "שמש מלאה",
+      "water": "השקיה מתונה - לאחר התייבשות הקרקע",
+      "desc": "יוקה רוסטרטה היא צמח נוי מרהיב בעל מראה פיסולי וייחודי. היא מתאפיינת בגזע מרשים שבראשו צמרת עגולה וסימטרית של עלים צרים, ארוכים ונוקשים בגוון כחול-כסוף. המראה האדריכלי שלה הופך אותה לאחד הצמחים המבוקשים בעיצוב גינות יוקרה וגינות בסגנון מדברי ומודרני\nתאורה: שמש מלאה – ככל שתקבל יותר שמש, כך תתפתח בצורה מיטבית.\n\nהשקיה: השקיה מתונה ומרווחת, לאחר התייבשות הקרקע",
+      "images": [
+        {
+          "url": "/assets/images/products/x5--zF1a4VQQuMl.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
+        }
+      ],
+      "stands": [],
+      "priceMax": 1000
     }
   },
   "removed": {
