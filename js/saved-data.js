@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 37,
+  "version": 38,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -571,6 +571,24 @@ const SAVED_DATA = {
       ],
       "stands": [],
       "priceMax": 1000
+    },
+    "x6": {
+      "name": "דקל אריקה - כד אבן פס באמצע",
+      "price": 600,
+      "cat": "boutique",
+      "size": "150 - 200 סמ",
+      "light": "תאורה חזקה - ללא שמש ישירה",
+      "water": "כאשר השכבה העליונה יבשה",
+      "desc": "דקל האריקה הוא אחד מצמחי הנוי האהובים והמרשימים ביותר לעיצוב הבית והגינה. הוא מתאפיין בעלים ארוכים, קשתיים ונוצתיים בגוון ירוק ורענן, הצומחים מתוך גבעולים זקופים ויוצרים מראה עשיר, מלא חיים ואלגנטי.\n\nהאריקה מעניק לכל חלל תחושה של טבע, רוגע ואווירת חופשה טרופית\nתאורה: אור טבעי חזק ומסונן, ללא שמש ישירה חזקה.\n\nהשקיה: השקיה כאשר השכבה העליונה של האדמה מתייבשת. להימנע מעודפי מים",
+      "images": [
+        {
+          "url": "/assets/images/products/x6-LGBn7Dj1VUTK.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
+        }
+      ],
+      "stands": [],
+      "priceMax": 800
     }
   },
   "removed": {
