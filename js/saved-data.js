@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 38,
+  "version": 39,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -503,7 +503,7 @@ const SAVED_DATA = {
     },
     "x7": {
       "name": "דרצנה מרגינטה מעוצבת",
-      "price": 0,
+      "price": 800,
       "cat": "boutique",
       "size": "120- 180 ס\"מ",
       "light": "בינונית- גבוהה (לא שמש ישירה)",
@@ -516,7 +516,8 @@ const SAVED_DATA = {
           "fit": "cover"
         }
       ],
-      "stands": []
+      "stands": [],
+      "priceMax": 1200
     },
     "x3": {
       "name": "עץ יוקה - כד וינטז' בהיר",
