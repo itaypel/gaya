@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 35,
+  "version": 36,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -529,6 +529,24 @@ const SAVED_DATA = {
       "images": [
         {
           "url": "/assets/images/products/x3-wV1I1NhEcz1C.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
+        }
+      ],
+      "stands": [],
+      "priceMax": 1200
+    },
+    "x4": {
+      "name": "פילודנדרון אימפריאל - כד וינטז' חום",
+      "price": 600,
+      "cat": "boutique",
+      "size": "120- 180 ס\"מ",
+      "light": "בינונית- גבוהה (לא שמש ישירה)",
+      "water": "השקיה כשהאדמה העליונה יבשה",
+      "desc": "הכירו את הפילודנדרון אימפריאל – צמח בית מרהיב בעל עלים גדולים, רחבים ומבריקים, היוצרים מראה עשיר, ירוק ויוקרתי. בזכות צמיחתו המרשימה ומבנהו הקומפקטי, הוא הופך בקלות לפריט עיצובי מרכזי בבית או במשרד.\nתאורה: אור טבעי חזק ומסונן, ללא שמש ישירה חזקה.\n\nהשקיה: להשקות כאשר השכבה העליונה של האדמה מתייבשת",
+      "images": [
+        {
+          "url": "/assets/images/products/x4-2miXJECphWWS.jpg",
           "pos": "50% 50%",
           "fit": "cover"
         }
