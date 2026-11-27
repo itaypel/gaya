@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 40,
+  "version": 41,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -584,6 +584,24 @@ const SAVED_DATA = {
       "images": [
         {
           "url": "/assets/images/products/x6-LGBn7Dj1VUTK.jpg",
+          "pos": "50% 50%",
+          "fit": "cover"
+        }
+      ],
+      "stands": [],
+      "priceMax": 800
+    },
+    "x8": {
+      "name": "פיקוס כינורי - כד חום וינז'",
+      "price": 600,
+      "cat": "boutique",
+      "size": "150 - 200 סמ",
+      "light": "תאורה חזקה - ללא שמש ישירה",
+      "water": "כאשר השכבה העליונה יבשה",
+      "desc": "פיקוס כינורי הוא אחד מצמחי הבית המרשימים והמבוקשים בעולם עיצוב הפנים. הוא מתאפיין בעלים גדולים במיוחד, מבריקים ובעלי צורה המזכירה כינור, בגוון ירוק עמוק ועשיר.\n\nהעלווה המרשימה והצמיחה הזקופה שלו מעניקות לו מראה פיסולי ונוכחות עיצובית יוצאת דופן. מושלם למי שרוצה להכניס אלמנט טבעי ובולט לחלל\nתאורה: אוהב אור טבעי חזק ומסונן. מומלץ למקם בקרבת חלון מואר.\n\nהשקיה: להשקות כאשר השכבה העליונה של האדמה מתייבשת",
+      "images": [
+        {
+          "url": "/assets/images/products/x8-baWz6UG9k7Dc.jpg",
           "pos": "50% 50%",
           "fit": "cover"
         }
