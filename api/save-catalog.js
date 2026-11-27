@@ -35,9 +35,10 @@ function sanitizeSite(input) {
   return out;
 }
 
-// Pot colors for boutique plants: [{id, label, hex}]. ids end up in cart and
+// Pot colors for boutique plants: [{id, label, hex, img?}]. ids end up in cart and
 // order keys, so they stay short; bad or duplicate entries are dropped.
 const MAX_POT_COLORS = 20;
+const POT_IMG_RE = /^\/assets\/images\/(pots|products)\/[A-Za-z0-9_-]{1,64}\.jpg$/;
 function sanitizePotColors(input) {
   const out = [];
   const seen = new Set();
@@ -52,7 +53,10 @@ function sanitizePotColors(input) {
     if (!label || label.length > 40) continue;
     if (!/^#[0-9a-fA-F]{6}$/.test(hex)) continue;
     seen.add(id);
-    out.push({ id, label, hex });
+    // Optional photo of the pot: only a site-local path (the shipped pots/
+    // folder or an admin upload in products/), never an arbitrary URL.
+    const img = typeof c.img === 'string' ? c.img : '';
+    out.push(POT_IMG_RE.test(img) ? { id, label, hex, img } : { id, label, hex });
   }
   return out;
 }

@@ -844,19 +844,22 @@ const SAVED_DATA = {
   },
   "potColors": [
     {
+      "id": "gray",
+      "label": "אפור-ירקרק",
+      "hex": "#9aa39a",
+      "img": "/assets/images/pots/gray.jpg"
+    },
+    {
+      "id": "rust",
+      "label": "חום-חלודה",
+      "hex": "#6e5a48",
+      "img": "/assets/images/pots/rust.jpg"
+    },
+    {
       "id": "blue",
       "label": "כחול",
-      "hex": "#3e5f7e"
-    },
-    {
-      "id": "gray",
-      "label": "אפור",
-      "hex": "#8e8f8a"
-    },
-    {
-      "id": "purple",
-      "label": "סגול",
-      "hex": "#6e5480"
+      "hex": "#2f6788",
+      "img": "/assets/images/pots/blue.jpg"
     }
   ]
 };

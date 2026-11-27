@@ -83,7 +83,7 @@ class App {
       nf: this.blankNf(), nfImgStatus: 'idle', nfImgError: '', nfNewId: null, nfStands: [],
       nfImages: [], nfImgSel: 0, nfImgProgress: null,
       prodImg: 0, prodStand: null, prodColor: null,
-      potColors: Array.isArray(SAVED_DATA.potColors) ? SAVED_DATA.potColors : POT_COLORS,
+      potColors: Array.isArray(SAVED_DATA.potColors) ? SAVED_DATA.potColors : POT_COLORS, potImgBusy: {}, potImgError: '',
       admAuthed, admPass: '', admGateError: false, admGateBusy: false, catalogSyncStatus: 'idle', catalogSyncError: '',
       orderSubmitting: false, orderError: '', lastOrderId: '',
       orders: [], ordersStatus: 'idle', ordersError: '',
@@ -579,6 +579,27 @@ class App {
     return list.find((c) => c.id === this.state.prodColor) || list[0] || null;
   }
   potHex(c) { return c && /^#[0-9a-fA-F]{6}$/.test(c.hex || '') ? c.hex : 'transparent'; }
+  // The pot's photo, if it has one — site-local paths only (same rule the
+  // server applies when saving), so it is safe to drop into src="".
+  potImg(c) { return c && /^\/assets\/images\/(pots|products)\/[A-Za-z0-9_-]{1,64}\.jpg$/.test(c.img || '') ? c.img : ''; }
+  // Swatch for a color: a small photo of the pot when there is one, else a dot.
+  potSwatch(c, cls) {
+    const img = this.potImg(c);
+    return img
+      ? `<img class="${cls}-img" src="${img}" alt="" aria-hidden="true" loading="lazy">`
+      : `<span class="color-dot" aria-hidden="true" style="background: ${this.potHex(c)}"></span>`;
+  }
+  async uploadPotImage(colorId, file) {
+    this.setState((st) => ({ potImgBusy: Object.assign({}, st.potImgBusy, { [colorId]: true }), potImgError: '' }));
+    try {
+      const url = await this._uploadImageFile(colorId, file, { unique: true });
+      this.editPotColors((l) => l.map((c) => (c.id === colorId ? Object.assign({}, c, { img: url }) : c)));
+    } catch (err) {
+      this.setState({ potImgError: (err && err.message) || 'ההעלאה נכשלה' });
+    } finally {
+      this.setState((st) => ({ potImgBusy: Object.assign({}, st.potImgBusy, { [colorId]: false }) }));
+    }
+  }
   newPotColorId() { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
   editPotColors(fn) { this.setState((st) => ({ potColors: fn(Array.isArray(st.potColors) ? st.potColors : []) })); }
   newStandId() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
@@ -753,6 +774,7 @@ class App {
     else if (t.dataset.nfStandPrice !== undefined) { const i = Number(t.dataset.nfStandPrice), v = t.value; this.editNfStands((l) => this.patchStandList(l, i, { price: v })); }
     else if (t.dataset.potColorLabel !== undefined) { const i = Number(t.dataset.potColorLabel), v = t.value.trim().slice(0, 40); if (v) this.editPotColors((l) => l.map((c, j) => (j === i ? Object.assign({}, c, { label: v }) : c))); }
     else if (t.dataset.potColorHex !== undefined) { const i = Number(t.dataset.potColorHex), v = t.value; if (/^#[0-9a-fA-F]{6}$/.test(v)) this.editPotColors((l) => l.map((c, j) => (j === i ? Object.assign({}, c, { hex: v }) : c))); }
+    else if (t.dataset.potImgFile) { const f = t.files && t.files[0]; const cid = t.dataset.potImgFile; t.value = ''; if (f) this.uploadPotImage(cid, f); }
     else if (t.dataset.storyImgFile) { const f = t.files && t.files[0]; const slot = t.dataset.storyImgFile; t.value = ''; if (f) this.uploadStoryImage(slot, f); }
   }
 
@@ -1335,7 +1357,7 @@ class App {
                 <span style="font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--color-neutral-700)">${this.lineLabel(l)}</span>
               </div>
               ${l.stand ? `<span style="font-size: 13px; color: var(--color-neutral-600)">סטנד ${esc(l.stand.label)}</span>` : ''}
-              ${l.color ? `<span class="cart-color"><span class="color-dot" aria-hidden="true" style="background: ${this.potHex(l.color)}"></span>כד ${esc(l.color.label)}</span>` : ''}
+              ${l.color ? `<span class="cart-color">${this.potSwatch(l.color, 'cart-color')}כד ${esc(l.color.label)}</span>` : ''}
               <div style="display: flex; align-items: center; gap: 14px; margin-top: 3px">
                 <div class="seg">
                   <button class="seg-opt" data-act="qtyDec" data-id="${esc(l.key)}" aria-label="הפחתה">${ICON.minus15}</button>
@@ -1629,8 +1651,9 @@ class App {
               </td></tr>` : ''}
               ${colors.length ? `<tr><td style="color: var(--color-neutral-600); vertical-align: top; padding-top: 15px">צבע הכד</td><td>
                 <div class="stand-opts" role="radiogroup" aria-label="צבע הכד">
-                  ${colors.map((c) => `<button class="stand-opt color-opt" role="radio" aria-checked="${!!color && color.id === c.id}" data-act="pickColor" data-id="${esc(c.id)}"><span class="color-dot" aria-hidden="true" style="background: ${this.potHex(c)}"></span>${esc(c.label)}</button>`).join('')}
+                  ${colors.map((c) => `<button class="stand-opt color-opt" role="radio" aria-checked="${!!color && color.id === c.id}" data-act="pickColor" data-id="${esc(c.id)}">${this.potSwatch(c, 'color-opt')}${esc(c.label)}</button>`).join('')}
                 </div>
+                ${color && this.potImg(color) ? `<figure class="pot-preview"><img src="${this.potImg(color)}" alt="הכד בצבע ${esc(color.label)}"><figcaption>כד ${esc(color.label)}</figcaption></figure>` : ''}
               </td></tr>` : ''}
             </tbody>
           </table>
@@ -2090,9 +2113,17 @@ class App {
           </div>
           ${rows.length ? `
           <div style="display: flex; flex-direction: column; gap: 8px; max-width: 520px">
-            <div class="pot-color-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>גוון</span><span>שם הצבע</span><span></span></div>
-            ${rows.map((c, i) => `
+            <div class="pot-color-row" style="font-size: 12px; color: var(--color-neutral-600)"><span>תמונה</span><span>גוון</span><span>שם הצבע</span><span></span></div>
+            ${rows.map((c, i) => {
+              const busy = !!(this.state.potImgBusy || {})[c.id];
+              const img = this.potImg(c);
+              return `
             <div class="pot-color-row">
+              <label class="pot-color-photo" for="pot-img-${i}" title="${img ? 'החלפת התמונה' : 'העלאת תמונה של הכד'}" style="${busy ? 'opacity: 0.5; pointer-events: none' : ''}">
+                ${img ? `<img src="${img}" alt="הכד ${esc(c.label)}">` : `<span aria-hidden="true">${busy ? '…' : ICON.plus15}</span>`}
+                <span class="visually-hidden">${img ? 'החלפת התמונה של' : 'העלאת תמונה של'} ${esc(c.label)}</span>
+              </label>
+              <input type="file" id="pot-img-${i}" accept="image/*,.heic,.heif" data-pot-img-file="${esc(c.id)}" style="display: none">
               <input class="pot-color-hex" type="color" id="pot-color-hex-${i}" data-pot-color-hex="${i}" value="${esc(this.potHex(c) === 'transparent' ? '#8e8f8a' : c.hex.toLowerCase())}" aria-label="הגוון של ${esc(c.label)}">
               <input class="input" id="pot-color-label-${i}" data-pot-color-label="${i}" value="${esc(c.label)}" maxlength="40" placeholder="למשל ירוק זית" aria-label="שם הצבע ${i + 1}">
               <span class="nf-stand-tools">
@@ -2100,10 +2131,12 @@ class App {
                 <button class="btn btn-secondary btn-icon" data-act="potColorDown" data-id="${i}" aria-label="להזיז את ${esc(c.label)} למטה" ${i === rows.length - 1 ? 'disabled' : ''}><span style="display: block; transform: rotate(-90deg)">${ICON.crumb}</span></button>
                 <button class="btn btn-secondary btn-icon" data-act="potColorDel" data-id="${i}" aria-label="להסיר את ${esc(c.label)}">${ICON.close}</button>
               </span>
-            </div>`).join('')}
+            </div>`;
+            }).join('')}
+            ${this.state.potImgError ? `<p style="margin: 0; font-size: 13px; color: #b3261e">${esc(this.state.potImgError)}</p>` : ''}
           </div>` : `<p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">אין צבעים ברשימה — עציצי הבוטיק נמכרים בלי בחירת צבע כד.</p>`}
           <button class="btn btn-secondary" data-act="potColorAdd" style="align-self: flex-start; gap: 8px" ${rows.length >= 20 ? 'disabled' : ''}>${ICON.plus15}<span>הוספת צבע</span></button>
-          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">הלקוח בוחר צבע כד בכל עציץ בוטיק, באותו מחיר. הצבע הראשון נבחר מראש, והסדר כאן הוא הסדר שהלקוח רואה. נשמר בלחיצה על "שמירת שינויים".</p>
+          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600)">הלקוח בוחר צבע כד בכל עציץ בוטיק, באותו מחיר. הצבע הראשון נבחר מראש, והסדר כאן הוא הסדר שהלקוח רואה. לחיצה על התמונה מחליפה את תמונת הכד, שמוצגת ללקוח ליד הבחירה. נשמר בלחיצה על "שמירת שינויים".</p>
         </div>`;
   }
 

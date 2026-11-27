@@ -42,13 +42,14 @@ function catOf(p) { return catInfo(p && p.cat).id; }
 function catField(id) { const c = catInfo(id).id; return c === 'kokedama' ? undefined : c; }
 
 // Pot colors a boutique plant can be ordered in — same price for every color.
+// img is a photo of that pot, shown in the picker on the product page.
 // The owner edits this list in the admin panel; it's saved as potColors in
 // saved-data.js and replaces these defaults. ids go into cart/order keys, so
 // keep them short [a-z0-9].
 const POT_COLORS = [
-  { id: 'blue', label: 'כחול', hex: '#3e5f7e' },
-  { id: 'gray', label: 'אפור', hex: '#8e8f8a' },
-  { id: 'purple', label: 'סגול', hex: '#6e5480' }
+  { id: 'gray', label: 'אפור-ירקרק', hex: '#9aa39a', img: '/assets/images/pots/gray.jpg' },
+  { id: 'rust', label: 'חום-חלודה', hex: '#6e5a48', img: '/assets/images/pots/rust.jpg' },
+  { id: 'blue', label: 'כחול', hex: '#2f6788', img: '/assets/images/pots/blue.jpg' }
 ];
 
 // Boutique pots are split by size into these sub-categories, in the order the
