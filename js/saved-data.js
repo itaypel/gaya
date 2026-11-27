@@ -2,7 +2,7 @@
 // save) — prices, texts, stock, photos and added/removed products, merged over
 // the CATALOG/STOCK/SITE defaults in data.js. Edit it by hand only with care.
 const SAVED_DATA = {
-  "version": 33,
+  "version": 34,
   "edits": {
     "p15": {
       "name": "קוקודמה פיקוס כינורי",
@@ -468,7 +468,7 @@ const SAVED_DATA = {
     },
     "x2": {
       "name": "אלוקסיה אוזן פיל - כד אבן פס אמצע",
-      "price": 0,
+      "price": 600,
       "cat": "boutique",
       "size": "120- 180 ס\"מ",
       "light": "בינונית- גבוהה (לא שמש ישירה)",
@@ -481,7 +481,8 @@ const SAVED_DATA = {
           "fit": "cover"
         }
       ],
-      "stands": []
+      "stands": [],
+      "priceMax": 1200
     },
     "x9": {
       "name": "שפלירה",
